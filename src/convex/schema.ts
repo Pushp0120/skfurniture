@@ -23,6 +23,13 @@ export const enquiryStatusValidator = v.union(
 );
 export type EnquiryStatus = Infer<typeof enquiryStatusValidator>;
 
+// Moderation state of a customer review
+export const reviewStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("approved"),
+);
+export type ReviewStatus = Infer<typeof reviewStatusValidator>;
+
 const schema = defineSchema(
   {
     // default auth tables using convex auth.
@@ -49,6 +56,50 @@ const schema = defineSchema(
       status: enquiryStatusValidator,
       createdAt: v.number(),
     }).index("by_created", ["createdAt"]),
+
+    // Signed-in sessions for the single admin account
+    adminSessions: defineTable({
+      token: v.string(),
+      createdAt: v.number(),
+      expiresAt: v.number(),
+    }).index("by_token", ["token"]),
+
+    // Services / products whose rates the admin can edit
+    products: defineTable({
+      name: v.string(),
+      description: v.optional(v.string()),
+      price: v.number(),
+      priceNote: v.optional(v.string()),
+      order: v.number(),
+      updatedAt: v.number(),
+    }).index("by_order", ["order"]),
+
+    // Images the admin uploads to showcase on the homepage
+    galleryImages: defineTable({
+      title: v.string(),
+      imageId: v.id("_storage"),
+      order: v.number(),
+      createdAt: v.number(),
+    }).index("by_order", ["order"]),
+
+    // Customer reviews
+    reviews: defineTable({
+      name: v.string(),
+      rating: v.number(),
+      text: v.string(),
+      status: reviewStatusValidator,
+      createdAt: v.number(),
+    }).index("by_created", ["createdAt"]),
+
+    // Customers who registered from the website
+    members: defineTable({
+      name: v.string(),
+      email: v.string(),
+      phone: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_created", ["createdAt"])
+      .index("by_email", ["email"]),
   },
   {
     schemaValidation: false,

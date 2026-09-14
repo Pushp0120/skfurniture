@@ -1,27 +1,5 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, query, QueryCtx } from "./_generated/server";
-
-/** The first signed-in user becomes the owner (admin) of the enquiries inbox. */
-export const claimOwner = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError("You must be signed in.");
-    }
-
-    const users = await ctx.db.query("users").collect();
-    const admin = users.find((u) => u.role === "admin");
-
-    if (admin) {
-      return { isOwner: admin._id === userId };
-    }
-
-    await ctx.db.patch(userId, { role: "admin" });
-    return { isOwner: true };
-  },
-});
+import { mutation } from "./_generated/server";
 
 /** Public: a visitor submits an enquiry from the website contact form. */
 export const submit = mutation({
@@ -60,51 +38,3 @@ export const submit = mutation({
     });
   },
 });
-
-/** Owner: all enquiries, newest first. Only the inbox owner (admin) sees them. */
-export const list = query({
-  args: {},
-  handler: async (ctx) => {
-    if (!(await isOwner(ctx))) {
-      return [];
-    }
-
-    return await ctx.db
-      .query("enquiries")
-      .withIndex("by_created")
-      .order("desc")
-      .collect();
-  },
-});
-
-/** Owner: mark an enquiry as handled or new. */
-export const setStatus = mutation({
-  args: {
-    id: v.id("enquiries"),
-    status: v.union(v.literal("new"), v.literal("handled")),
-  },
-  handler: async (ctx, args) => {
-    if (!(await isOwner(ctx))) {
-      throw new ConvexError("This inbox is private to the account owner.");
-    }
-    await ctx.db.patch(args.id, { status: args.status });
-  },
-});
-
-/** Owner: delete an enquiry. */
-export const remove = mutation({
-  args: { id: v.id("enquiries") },
-  handler: async (ctx, args) => {
-    if (!(await isOwner(ctx))) {
-      throw new ConvexError("This inbox is private to the account owner.");
-    }
-    await ctx.db.delete(args.id);
-  },
-});
-
-async function isOwner(ctx: QueryCtx): Promise<boolean> {
-  const userId = await getAuthUserId(ctx);
-  if (userId === null) return false;
-  const user = await ctx.db.get(userId);
-  return user?.role === "admin";
-}

@@ -1,4 +1,7 @@
 import { EnquiryForm } from "@/components/EnquiryForm";
+import { ReviewForm } from "@/components/ReviewForm";
+import { Stars } from "@/components/Stars";
+import { WishlistButton } from "@/components/WishlistButton";
 import {
   Accordion,
   AccordionContent,
@@ -8,7 +11,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useWishlist } from "@/hooks/use-wishlist";
+import { api } from "@/convex/_generated/api";
 import { motion } from "framer-motion";
+import { useMutation, useQuery } from "convex/react";
 import {
   ArrowRight,
   Check,
@@ -16,6 +23,7 @@ import {
   CookingPot,
   DoorOpen,
   Hammer,
+  Heart,
   Instagram,
   MapPin,
   Quote,
@@ -26,9 +34,14 @@ import {
   Star,
   Tv,
 } from "lucide-react";
+import { useEffect } from "react";
 import { Link } from "react-router";
 
 const INSTAGRAM_URL = "https://instagram.com/s_kitchen_point_bilimora";
+const ADDRESS =
+  "Shop No. 15, Ground Floor, Shree Vinayak Homes, Opp. ITI, Atalia, Bilimora 396321";
+const MAP_SRC =
+  "https://www.google.com/maps?q=Shree%20Vinayak%20Homes%2C%20Opp.%20ITI%2C%20Atalia%2C%20Bilimora%20396321&output=embed";
 
 const fadeUp = {
   initial: { opacity: 0, y: 18 },
@@ -37,34 +50,15 @@ const fadeUp = {
   transition: { duration: 0.5 },
 } as const;
 
-const services = [
-  {
-    icon: CookingPot,
-    title: "Modular Kitchens",
-    copy: "Made-to-measure kitchen cabinets in modern finishes — L-shaped, straight or parallel layouts planned around your space.",
-    points: ["Soft-close hardware", "Moisture-resistant carcass", "From ₹14,999"],
-  },
-  {
-    icon: Ruler,
-    title: "PVC Furniture",
-    copy: "Rust, water and termite resistant PVC furniture built for real Indian homes — no swelling, no rotting, easy to clean.",
-    points: ["100% waterproof", "Any size, any colour", "Indoor & outdoor"],
-  },
-  {
-    icon: DoorOpen,
-    title: "Wardrobes & Storage",
-    copy: "Sliding and openable wardrobes, loft storage and utility cabinets designed to make every wall work harder.",
-    points: ["Sliding or hinged", "Mirror & loft options", "Custom internals"],
-  },
-  {
-    icon: Tv,
-    title: "TV Units & Decor",
-    copy: "TV units, study tables and wall décor that bring the room together — finished to match your existing interiors.",
-    points: ["Wall-mounted units", "Study & console tables", "Matching finishes"],
-  },
-];
+const serviceIcon = [CookingPot, DoorOpen, Tv, Ruler];
 
-const work = [
+const toneStyles: Record<string, string> = {
+  sage: "bg-[linear-gradient(145deg,#9CAA93,#6E7C64)]",
+  wood: "bg-[linear-gradient(145deg,#C79A6B,#9C6B3F)]",
+  cream: "bg-[linear-gradient(145deg,#EFE7DA,#D8CCB8)]",
+};
+
+const fallbackTiles = [
   { label: "L-shaped modular kitchen", tone: "sage" as const },
   { label: "Sage-green wardrobe", tone: "sage" as const },
   { label: "PVC TV unit", tone: "wood" as const },
@@ -72,12 +66,6 @@ const work = [
   { label: "Loft & overhead storage", tone: "wood" as const },
   { label: "Utility & bathroom vanity", tone: "cream" as const },
 ];
-
-const toneStyles: Record<string, string> = {
-  sage: "bg-[linear-gradient(145deg,#9CAA93,#6E7C64)]",
-  wood: "bg-[linear-gradient(145deg,#C79A6B,#9C6B3F)]",
-  cream: "bg-[linear-gradient(145deg,#EFE7DA,#D8CCB8)]",
-};
 
 const benefits = [
   {
@@ -103,50 +91,17 @@ const benefits = [
 ];
 
 const steps = [
-  {
-    title: "Free design consultation",
-    copy: "Share your room, budget and rough sizes — in the showroom or over a call.",
-  },
-  {
-    title: "Site measurement",
-    copy: "We visit, measure and finalise the layout, materials and colours with you.",
-  },
-  {
-    title: "Build & finish",
-    copy: "Your units are cut, finished and prepared so installation is quick and clean.",
-  },
-  {
-    title: "On-site installation",
-    copy: "We fit everything, align the shutters and hand over a ready-to-use kitchen.",
-  },
+  { title: "Free consultation", copy: "Share your room, budget and rough sizes." },
+  { title: "Site measurement", copy: "We visit, measure and finalise the design." },
+  { title: "Build & finish", copy: "Your units are cut and finished in the workshop." },
+  { title: "Installation", copy: "We fit everything and hand over a ready kitchen." },
 ];
 
 const stats = [
   { value: "500+", label: "Homes fitted" },
-  { value: "7 days", label: "Typical kitchen install" },
+  { value: "7 days", label: "Typical install" },
   { value: "100%", label: "Made to measure" },
   { value: "1 yr", label: "Fittings warranty" },
-];
-
-const testimonials = [
-  {
-    quote:
-      "They measured first, designed the kitchen around our exact wall, and the price stayed where they said it would. No surprises.",
-    name: "Hardik P.",
-    place: "Bilimora",
-  },
-  {
-    quote:
-      "We wanted PVC furniture because of the humidity. Two years on, the wardrobes still look new and clean up in seconds.",
-    name: "Nisha V.",
-    place: "Chikhli",
-  },
-  {
-    quote:
-      "Kabinets and wardrobe both done in a week. The finish is neat and they respected our budget.",
-    name: "Rakesh M.",
-    place: "Gandevi",
-  },
 ];
 
 const faqs = [
@@ -156,7 +111,7 @@ const faqs = [
   },
   {
     q: "Why PVC instead of plywood?",
-    a: "PVC is waterproof, rust-free and termite-resistant, which makes it ideal for kitchens, bathrooms and humid areas. It is also easy to clean and holds its shape without swelling.",
+    a: "PVC is waterproof, rust-free and termite-resistant, which makes it ideal for kitchens, bathrooms and humid areas. It cleans easily and holds its shape without swelling.",
   },
   {
     q: "How long does an installation take?",
@@ -195,7 +150,30 @@ function KitchenPanel() {
   );
 }
 
+function formatPrice(value: number) {
+  return `₹${value.toLocaleString("en-IN")}`;
+}
+
 export default function Landing() {
+  const gallery = useQuery(api.gallery.list);
+  const products = useQuery(api.products.list);
+  const reviews = useQuery(api.reviews.listApproved);
+  const ensureSeed = useMutation(api.products.ensureSeed);
+  const { count: wishlistCount } = useWishlist();
+
+  useEffect(() => {
+    ensureSeed();
+  }, [ensureSeed]);
+
+  const heroImages = (gallery ?? [])
+    .filter((image) => image.url)
+    .slice(0, 3);
+
+  const avgRating =
+    reviews && reviews.length > 0
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      : 0;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -214,29 +192,52 @@ export default function Landing() {
               </span>
             </span>
           </a>
-          <nav className="hidden items-center gap-7 text-sm text-muted-foreground lg:flex">
+          <nav className="hidden items-center gap-6 text-sm text-muted-foreground lg:flex">
             <a href="#services" className="transition-colors hover:text-foreground">
               Services
             </a>
-            <a href="#work" className="transition-colors hover:text-foreground">
-              Our work
+            <a href="#gallery" className="transition-colors hover:text-foreground">
+              Gallery
             </a>
-            <a href="#why" className="transition-colors hover:text-foreground">
-              Why us
+            <a href="#reviews" className="transition-colors hover:text-foreground">
+              Reviews
             </a>
-            <a href="#process" className="transition-colors hover:text-foreground">
-              Process
+            <a href="#location" className="transition-colors hover:text-foreground">
+              Location
             </a>
             <a href="#contact" className="transition-colors hover:text-foreground">
               Contact
             </a>
           </nav>
-          <Button asChild size="sm" className="gap-1.5">
-            <a href="#contact">
-              Get a free quote
-              <ArrowRight className="size-4" />
-            </a>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="icon"
+              className="relative"
+              aria-label="Wishlist"
+            >
+              <Link to="/wishlist">
+                <Heart className="size-4" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                    {wishlistCount}
+                  </span>
+                )}
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="icon" aria-label="Instagram">
+              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
+                <Instagram className="size-4" />
+              </a>
+            </Button>
+            <Button asChild size="sm" className="gap-1.5">
+              <a href="#contact">
+                Get a quote
+                <ArrowRight className="size-4" />
+              </a>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -266,7 +267,8 @@ export default function Landing() {
             <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
               S K Furniture designs and builds modular kitchens, waterproof PVC
               furniture and storage that fit your walls, your budget and the way
-              your family actually lives. <strong>Quality · Style · Best price.</strong>
+              your family lives.{" "}
+              <strong>Quality · Style · Best price.</strong>
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button asChild size="lg" className="gap-2">
@@ -276,23 +278,24 @@ export default function Landing() {
                 </a>
               </Button>
               <Button asChild size="lg" variant="outline" className="gap-2">
-                <a href="#work">See our work</a>
+                <a href="#gallery">See our work</a>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="gap-2">
+                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
+                  <Instagram className="size-4" />
+                  Instagram
+                </a>
               </Button>
             </div>
-            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <Check className="size-4 text-primary" />
-                Free design consultation
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Check className="size-4 text-primary" />
-                Made to your measurements
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Check className="size-4 text-primary" />
-                Kitchen cabinets from ₹14,999
-              </span>
-            </div>
+            {reviews && reviews.length > 0 && (
+              <div className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
+                <Stars value={avgRating} />
+                <span>
+                  {avgRating.toFixed(1)} from {reviews.length} review
+                  {reviews.length > 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
           </motion.div>
 
           <motion.div
@@ -304,7 +307,31 @@ export default function Landing() {
             <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-[radial-gradient(60%_60%_at_70%_20%,rgba(199,154,107,0.35),transparent)] blur-2xl" />
             <Card className="overflow-hidden border-border/70 shadow-xl shadow-black/5">
               <CardContent className="p-3">
-                <KitchenPanel />
+                {heroImages.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {heroImages[0].url && (
+                      <img
+                        src={heroImages[0].url}
+                        alt={heroImages[0].title}
+                        className="col-span-2 h-48 w-full rounded-xl object-cover sm:h-56"
+                        loading="eager"
+                      />
+                    )}
+                    {heroImages.slice(1, 3).map((image) =>
+                      image.url ? (
+                        <img
+                          key={image._id}
+                          src={image.url}
+                          alt={image.title}
+                          className="h-28 w-full rounded-xl object-cover sm:h-32"
+                          loading="lazy"
+                        />
+                      ) : null,
+                    )}
+                  </div>
+                ) : (
+                  <KitchenPanel />
+                )}
               </CardContent>
             </Card>
             <div className="absolute -bottom-4 -left-3 rounded-xl border border-border/70 bg-card px-4 py-3 shadow-lg sm:-left-6">
@@ -321,111 +348,162 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Feature strip */}
+      {/* Trust strip */}
       <section className="border-y border-border/60 bg-primary text-primary-foreground">
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-6 px-5 py-7 text-sm sm:grid-cols-4">
-          {[
-            "Waterproof PVC",
-            "Made to measure",
-            "18mm boards",
-            "Free site visit",
-          ].map((item) => (
-            <div key={item} className="flex items-center gap-2">
-              <Check className="size-4 shrink-0 text-primary-foreground/80" />
-              <span className="font-medium">{item}</span>
-            </div>
-          ))}
+          {["Waterproof PVC", "Made to measure", "18mm boards", "Free site visit"].map(
+            (item) => (
+              <div key={item} className="flex items-center gap-2">
+                <Check className="size-4 shrink-0 text-primary-foreground/80" />
+                <span className="font-medium">{item}</span>
+              </div>
+            ),
+          )}
         </div>
       </section>
 
-      {/* Services */}
+      {/* Services & rates */}
       <section id="services" className="mx-auto w-full max-w-6xl scroll-mt-20 px-5 py-16 lg:py-20">
-        <motion.div {...fadeUp} className="max-w-2xl">
-          <Badge variant="outline" className="border-border/70">
-            What we do
-          </Badge>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Furniture built around your space
-          </h2>
-          <p className="mt-3 text-muted-foreground">
-            From a single kitchen to a full home fit-out — every job is measured,
-            planned and built to your rooms.
-          </p>
+        <motion.div {...fadeUp} className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl">
+            <Badge variant="outline" className="border-border/70">
+              Services &amp; rates
+            </Badge>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+              What we build &amp; what it costs
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Transparent starting rates. Tap the heart on anything you like to
+              save it to your wishlist.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="gap-2 self-start sm:self-auto">
+            <Link to="/wishlist">
+              <Heart className="size-4" />
+              My wishlist{wishlistCount > 0 ? ` (${wishlistCount})` : ""}
+            </Link>
+          </Button>
         </motion.div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          {services.map((service, index) => (
-            <motion.div
-              key={service.title}
-              {...fadeUp}
-              transition={{ duration: 0.45, delay: index * 0.05 }}
-            >
-              <Card className="h-full border-border/70 shadow-none transition-colors hover:border-primary/40">
-                <CardContent className="p-6">
-                  <span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <service.icon className="size-5" />
-                  </span>
-                  <h3 className="mt-4 text-lg font-semibold tracking-tight">
-                    {service.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {service.copy}
-                  </p>
-                  <ul className="mt-4 flex flex-wrap gap-2">
-                    {service.points.map((point) => (
-                      <li
-                        key={point}
-                        className="rounded-full border border-border/70 bg-muted/50 px-3 py-1 text-xs font-medium text-foreground/80"
-                      >
-                        {point}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+          {products === undefined
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-44 w-full rounded-xl" />
+              ))
+            : products.map((product, index) => {
+                const Icon = serviceIcon[index % serviceIcon.length];
+                return (
+                  <motion.div
+                    key={product._id}
+                    {...fadeUp}
+                    transition={{ duration: 0.45, delay: index * 0.04 }}
+                  >
+                    <Card className="h-full border-border/70 shadow-none transition-colors hover:border-primary/40">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                              <Icon className="size-5" />
+                            </span>
+                            <h3 className="text-lg font-semibold tracking-tight">
+                              {product.name}
+                            </h3>
+                          </div>
+                          <WishlistButton
+                            item={{
+                              id: product._id,
+                              name: product.name,
+                              price: product.price,
+                              priceNote: product.priceNote,
+                            }}
+                          />
+                        </div>
+                        {product.description && (
+                          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                            {product.description}
+                          </p>
+                        )}
+                        <div className="mt-4 flex items-baseline gap-2">
+                          <span className="text-2xl font-semibold tracking-tight">
+                            {formatPrice(product.price)}
+                          </span>
+                          {product.priceNote && (
+                            <span className="text-sm text-muted-foreground">
+                              {product.priceNote}
+                            </span>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
         </div>
       </section>
 
-      {/* Work */}
-      <section id="work" className="scroll-mt-20 border-y border-border/60 bg-muted/30">
+      {/* Gallery */}
+      <section id="gallery" className="scroll-mt-20 border-y border-border/60 bg-muted/30">
         <div className="mx-auto w-full max-w-6xl px-5 py-16 lg:py-20">
           <motion.div {...fadeUp} className="max-w-2xl">
             <Badge variant="outline" className="border-border/70 bg-background">
               Our work
             </Badge>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-              A few finishes we love
+              Recent kitchens &amp; furniture
             </h2>
             <p className="mt-3 text-muted-foreground">
               Sage, walnut and bright cream are our most-requested looks. Every
-              unit is finished to match the kitchen or room it lives in.
+              unit is finished to match the room it lives in.
             </p>
           </motion.div>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {work.map((item, index) => (
-              <motion.div
-                key={item.label}
-                {...fadeUp}
-                transition={{ duration: 0.45, delay: index * 0.04 }}
-                className="group overflow-hidden rounded-2xl border border-border/70 bg-card"
-              >
-                <div
-                  className={`relative flex aspect-[4/3] items-end ${toneStyles[item.tone]}`}
+          {gallery && gallery.length > 0 ? (
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {gallery.map((image, index) => (
+                <motion.div
+                  key={image._id}
+                  {...fadeUp}
+                  transition={{ duration: 0.45, delay: index * 0.03 }}
+                  className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card"
                 >
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 opacity-25 [background-image:repeating-linear-gradient(90deg,rgba(255,255,255,0.4)_0_1px,transparent_1px_22px)]"
-                  />
-                  <div className="relative m-3 rounded-lg bg-black/35 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-                    {item.label}
+                  {image.url && (
+                    <img
+                      src={image.url}
+                      alt={image.title}
+                      className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                    <p className="text-sm font-medium text-white">
+                      {image.title}
+                    </p>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {fallbackTiles.map((item, index) => (
+                <motion.div
+                  key={item.label}
+                  {...fadeUp}
+                  transition={{ duration: 0.45, delay: index * 0.04 }}
+                  className="group overflow-hidden rounded-2xl border border-border/70 bg-card"
+                >
+                  <div className={`relative flex aspect-[4/3] items-end ${toneStyles[item.tone]}`}>
+                    <div
+                      aria-hidden
+                      className="absolute inset-0 opacity-25 [background-image:repeating-linear-gradient(90deg,rgba(255,255,255,0.4)_0_1px,transparent_1px_22px)]"
+                    />
+                    <div className="relative m-3 rounded-lg bg-black/35 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                      {item.label}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -444,20 +522,6 @@ export default function Landing() {
               who measure, build and fit your furniture — which is why the finish
               on site matches the plan, and the price stays honest.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button asChild className="gap-2">
-                <a href="#contact">
-                  Book a free measurement
-                  <ArrowRight className="size-4" />
-                </a>
-              </Button>
-              <Button asChild variant="outline" className="gap-2">
-                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
-                  <Instagram className="size-4" />
-                  See the feed
-                </a>
-              </Button>
-            </div>
           </motion.div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -510,7 +574,6 @@ export default function Landing() {
             From idea to installed, in four steps
           </h2>
         </motion.div>
-
         <div className="mt-10 grid gap-6 md:grid-cols-4">
           {steps.map((step, index) => (
             <motion.div
@@ -535,45 +598,61 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="border-y border-border/60 bg-muted/30">
+      {/* Reviews */}
+      <section id="reviews" className="scroll-mt-20 border-y border-border/60 bg-muted/30">
         <div className="mx-auto w-full max-w-6xl px-5 py-16 lg:py-20">
           <motion.div {...fadeUp} className="max-w-2xl">
             <Badge variant="outline" className="border-border/70 bg-background">
-              Happy homes
+              Reviews
             </Badge>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
               What customers say
             </h2>
           </motion.div>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {testimonials.map((item, index) => (
-              <motion.div
-                key={item.name}
-                {...fadeUp}
-                transition={{ duration: 0.45, delay: index * 0.05 }}
-              >
-                <Card className="h-full border-border/70 shadow-none">
-                  <CardContent className="flex h-full flex-col p-6">
-                    <Quote className="size-6 text-primary/50" />
-                    <p className="mt-3 flex-1 text-sm leading-6 text-foreground/80">
-                      {item.quote}
-                    </p>
-                    <div className="mt-5 flex items-center gap-3 border-t border-border/60 pt-4">
-                      <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
-                        {item.name.charAt(0)}
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.place}
+
+          <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {reviews === undefined ? (
+                Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-40 w-full rounded-xl" />
+                ))
+              ) : reviews.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground sm:col-span-2">
+                  No reviews yet — be the first to share your experience.
+                </div>
+              ) : (
+                reviews.map((review, index) => (
+                  <motion.div
+                    key={review._id}
+                    {...fadeUp}
+                    transition={{ duration: 0.45, delay: index * 0.04 }}
+                  >
+                    <Card className="h-full border-border/70 shadow-none">
+                      <CardContent className="flex h-full flex-col p-6">
+                        <Quote className="size-6 text-primary/50" />
+                        <Stars value={review.rating} className="mt-3" />
+                        <p className="mt-3 flex-1 text-sm leading-6 text-foreground/80">
+                          {review.text}
                         </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                        <div className="mt-5 flex items-center gap-3 border-t border-border/60 pt-4">
+                          <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
+                            {review.name.charAt(0).toUpperCase()}
+                          </span>
+                          <p className="text-sm font-medium">{review.name}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
+              )}
+            </div>
+
+            <motion.div {...fadeUp} transition={{ duration: 0.45, delay: 0.1 }}>
+              <h3 className="mb-3 text-base font-semibold tracking-tight">
+                Leave a review
+              </h3>
+              <ReviewForm />
+            </motion.div>
           </div>
         </div>
       </section>
@@ -604,33 +683,24 @@ export default function Landing() {
         </motion.div>
       </section>
 
-      {/* Contact */}
-      <section id="contact" className="scroll-mt-20 border-t border-border/60 bg-muted/30">
+      {/* Location + map */}
+      <section id="location" className="scroll-mt-20 border-y border-border/60 bg-muted/30">
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-16 lg:grid-cols-2 lg:py-20">
           <motion.div {...fadeUp}>
             <Badge variant="outline" className="border-border/70 bg-background">
-              Get a quote
+              Find us
             </Badge>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Let's plan your kitchen or wardrobe
+              Visit the showroom
             </h2>
-            <p className="mt-3 text-muted-foreground">
-              Send your details and we'll call you back to arrange a free
-              measurement and an itemised quote. No obligation.
-            </p>
-
-            <div className="mt-8 space-y-4">
+            <div className="mt-6 space-y-5">
               <div className="flex items-start gap-3">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-sm">
                   <MapPin className="size-5" />
                 </span>
                 <div>
-                  <p className="text-sm font-medium">Visit the showroom</p>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    Shop No. 15, Ground Floor, Shree Vinayak Homes,
-                    <br />
-                    Opp. ITI, Atalia, Bilimora — 396321
-                  </p>
+                  <p className="text-sm font-medium">Address</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{ADDRESS}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -644,21 +714,23 @@ export default function Landing() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-sm">
-                  <Instagram className="size-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">Message us on Instagram</p>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <Button asChild className="gap-2">
+                  <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
+                    <Instagram className="size-4" />
+                    Message on Instagram
+                  </a>
+                </Button>
+                <Button asChild variant="outline" className="gap-2">
                   <a
-                    href={INSTAGRAM_URL}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ADDRESS)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-0.5 inline-flex text-sm text-primary underline-offset-4 hover:underline"
                   >
-                    @s_kitchen_point_bilimora
+                    <MapPin className="size-4" />
+                    Open in Google Maps
                   </a>
-                </div>
+                </Button>
               </div>
             </div>
           </motion.div>
@@ -666,8 +738,51 @@ export default function Landing() {
           <motion.div
             {...fadeUp}
             transition={{ duration: 0.45, delay: 0.1 }}
-            id="quote-form"
+            className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
           >
+            <iframe
+              title="S K Furniture location on Google Maps"
+              src={MAP_SRC}
+              className="h-80 w-full border-0 lg:h-full lg:min-h-[22rem]"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Contact */}
+      <section id="contact" className="scroll-mt-20">
+        <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-16 lg:grid-cols-2 lg:py-20">
+          <motion.div {...fadeUp}>
+            <Badge variant="outline" className="border-border/70">
+              Get a quote
+            </Badge>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Let's plan your kitchen or wardrobe
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Send your details and we'll call you back to arrange a free
+              measurement and an itemised quote. No obligation.
+            </p>
+            <ul className="mt-6 space-y-3 text-sm">
+              {[
+                "Free design consultation and site measurement",
+                "Fixed, itemised quote before we build",
+                "Waterproof PVC and treated boards",
+                "Local installation by our own team",
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Check className="size-3" />
+                  </span>
+                  <span className="text-foreground/80">{line}</span>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+
+          <motion.div {...fadeUp} transition={{ duration: 0.45, delay: 0.1 }}>
             <EnquiryForm />
           </motion.div>
         </div>
@@ -696,23 +811,23 @@ export default function Landing() {
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>
                 <a href="#services" className="hover:text-foreground">
-                  Services
+                  Services &amp; rates
                 </a>
               </li>
               <li>
-                <a href="#work" className="hover:text-foreground">
-                  Our work
+                <a href="#gallery" className="hover:text-foreground">
+                  Gallery
                 </a>
               </li>
               <li>
-                <a href="#why" className="hover:text-foreground">
-                  Why us
+                <a href="#reviews" className="hover:text-foreground">
+                  Reviews
                 </a>
               </li>
               <li>
-                <a href="#contact" className="hover:text-foreground">
-                  Contact
-                </a>
+                <Link to="/wishlist" className="hover:text-foreground">
+                  Wishlist
+                </Link>
               </li>
             </ul>
           </div>
@@ -735,11 +850,16 @@ export default function Landing() {
                 <span>Atalia, Bilimora 396321</span>
               </li>
               <li>
+                <Link to="/join" className="hover:text-foreground">
+                  Create an account
+                </Link>
+              </li>
+              <li>
                 <Link
-                  to="/auth?returnTo=/dashboard"
+                  to="/admin"
                   className="text-xs text-muted-foreground/70 underline-offset-4 hover:text-foreground hover:underline"
                 >
-                  Owner login
+                  Admin login
                 </Link>
               </li>
             </ul>
