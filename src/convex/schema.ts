@@ -16,32 +16,12 @@ export const roleValidator = v.union(
 );
 export type Role = Infer<typeof roleValidator>;
 
-// A single colour extracted from a profile's visual identity
-export const brandColourValidator = v.object({
-  name: v.string(),
-  hex: v.string(),
-  role: v.optional(v.string()),
-});
-
-// The 7-part brand analysis returned for an Instagram profile
-export const brandReportValidator = v.object({
-  brandName: v.optional(v.string()),
-  handle: v.optional(v.string()),
-  brandPersonality: v.optional(v.string()),
-  targetAudience: v.optional(v.string()),
-  coreOffer: v.optional(v.string()),
-  brandColours: v.optional(v.array(brandColourValidator)),
-  contentStyle: v.optional(v.string()),
-  websiteGoal: v.optional(v.string()),
-  keyMessage: v.optional(v.string()),
-  evidence: v.optional(v.string()),
-});
-
-export const analysisStatusValidator = v.union(
-  v.literal("pending"),
-  v.literal("complete"),
-  v.literal("error"),
+// Lifecycle of a customer enquiry submitted from the website
+export const enquiryStatusValidator = v.union(
+  v.literal("new"),
+  v.literal("handled"),
 );
+export type EnquiryStatus = Infer<typeof enquiryStatusValidator>;
 
 const schema = defineSchema(
   {
@@ -59,18 +39,16 @@ const schema = defineSchema(
       role: v.optional(roleValidator), // role of the user. do not remove
     }).index("email", ["email"]), // index for the email. do not remove or modify
 
-    // Brand analyses generated from Instagram profile links
-    analyses: defineTable({
-      userId: v.id("users"),
-      instagramUrl: v.string(),
-      username: v.optional(v.string()),
-      userContext: v.optional(v.string()),
-      status: analysisStatusValidator,
-      error: v.optional(v.string()),
-      scrapedText: v.optional(v.string()),
-      report: v.optional(brandReportValidator),
+    // Customer enquiries captured by the website's contact form
+    enquiries: defineTable({
+      name: v.string(),
+      phone: v.string(),
+      email: v.optional(v.string()),
+      requirement: v.optional(v.string()),
+      message: v.string(),
+      status: enquiryStatusValidator,
       createdAt: v.number(),
-    }).index("by_user", ["userId", "createdAt"])
+    }).index("by_created", ["createdAt"]),
   },
   {
     schemaValidation: false,

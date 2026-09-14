@@ -1,130 +1,119 @@
-import { BrandReport } from "@/components/BrandReport";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/hooks/use-auth";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import {
-  AlertTriangle,
-  Instagram,
-  Loader2,
+  ArrowLeft,
+  Check,
+  Inbox,
+  Lock,
   LogOut,
-  Sparkles,
+  Mail,
+  Phone,
+  RotateCcw,
   Trash2,
-  Wand2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
-const IG_BAR =
-  "linear-gradient(90deg, #FEDA75 0%, #FA7E1E 28%, #D62976 58%, #962FBF 80%, #4F5BD5 100%)";
+type Filter = "all" | "new" | "handled";
+type OwnerState = "checking" | "owner" | "denied";
 
-function formatDate(ts: number) {
-  return new Date(ts).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function timeAgo(ts: number) {
+  const diff = Date.now() - ts;
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString();
 }
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const analyses = useQuery(api.analyses.list);
-  const createAnalysis = useMutation(api.analyses.create);
-  const removeAnalysis = useMutation(api.analyses.remove);
-  const runAnalyze = useAction(api.analyze.analyze);
+  const enquiries = useQuery(api.enquiries.list);
+  const claimOwner = useMutation(api.enquiries.claimOwner);
+  const setStatus = useMutation(api.enquiries.setStatus);
+  const removeEnquiry = useMutation(api.enquiries.remove);
 
-  const [url, setUrl] = useState("");
-  const [context, setContext] = useState("");
-  const [showContext, setShowContext] = useState(false);
-  const [activeId, setActiveId] = useState<Id<"analyses"> | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [ownerState, setOwnerState] = useState<OwnerState>("checking");
 
-  const activeDoc = useQuery(
-    api.analyses.get,
-    activeId ? { id: activeId } : "skip",
-  );
+  useEffect(() => {
+    let active = true;
+    claimOwner()
+      .then((result) => {
+        if (active) setOwnerState(result.isOwner ? "owner" : "denied");
+      })
+      .catch(() => {
+        if (active) setOwnerState("denied");
+      });
+    return () => {
+      active = false;
+    };
+  }, [claimOwner]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const trimmed = url.trim();
-    if (!trimmed || isSubmitting) return;
+  const list = enquiries ?? [];
+  const newCount = list.filter((e) => e.status === "new").length;
+  const handledCount = list.filter((e) => e.status === "handled").length;
+  const visible = list.filter((e) =>
+    filter === "all" ? true : e.status === filter,
+  );
 
-    setFormError(null);
-    setIsSubmitting(true);
-    const trimmedContext = context.trim();
-
-    try {
-      const id = await createAnalysis({
-        instagramUrl: trimmed,
-        userContext: trimmedContext || undefined,
-      });
-      setActiveId(id);
-      setUrl("");
-      setContext("");
-      setShowContext(false);
-
-      await runAnalyze({
-        analysisId: id,
-        url: trimmed,
-        userContext: trimmedContext || undefined,
-      });
-    } catch (err) {
-      setFormError(
-        err instanceof Error ? err.message : "Something went wrong. Try again.",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (
-    id: Id<"analyses">,
-    event: React.MouseEvent,
+  const toggleStatus = async (
+    id: Id<"enquiries">,
+    status: "new" | "handled",
   ) => {
-    event.stopPropagation();
     try {
-      await removeAnalysis({ id });
-      if (activeId === id) setActiveId(null);
-      toast.success("Report deleted");
+      await setStatus({ id, status });
     } catch {
-      toast.error("Couldn't delete the report");
+      toast.error("Couldn't update the enquiry");
     }
   };
+
+  const handleDelete = async (id: Id<"enquiries">) => {
+    try {
+      await removeEnquiry({ id });
+      toast.success("Enquiry deleted");
+    } catch {
+      toast.error("Couldn't delete the enquiry");
+    }
+  };
+
+  const filters: { key: Filter; label: string; count: number }[] = [
+    { key: "all", label: "All", count: list.length },
+    { key: "new", label: "New", count: newCount },
+    { key: "handled", label: "Handled", count: handledCount },
+  ];
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
-        <div
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-px"
-          style={{ backgroundImage: IG_BAR }}
-        />
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
           <button
             type="button"
             onClick={() => navigate("/")}
             className="flex items-center gap-2.5"
           >
-            <span className="flex size-9 items-center justify-center rounded-xl bg-foreground text-background">
-              <Instagram className="size-5" />
+            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
+              SK
             </span>
             <span className="text-sm font-semibold tracking-tight">
-              Brand&nbsp;Pulse&nbsp;AI
+              S&nbsp;K&nbsp;Furniture · Enquiries
             </span>
           </button>
           <div className="flex items-center gap-3">
@@ -145,240 +134,203 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-5 py-8">
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-          {/* Left: composer + history */}
-          <div className="space-y-6">
-            <Card className="border-border/70 shadow-none">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-2 text-primary">
-                  <Wand2 className="size-4" />
-                  <span className="text-xs font-medium uppercase tracking-[0.16em]">
-                    New analysis
-                  </span>
-                </div>
-                <h1 className="mt-3 text-lg font-semibold tracking-tight">
-                  Analyse an Instagram profile
+      <main className="mx-auto w-full max-w-5xl px-5 py-8">
+        {ownerState === "checking" ? (
+          <div className="space-y-3">
+            <Skeleton className="h-10 w-64 rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-28 w-full rounded-xl" />
+          </div>
+        ) : ownerState === "denied" ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-12 text-center">
+            <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Lock className="size-6" />
+            </span>
+            <h1 className="mt-4 text-lg font-semibold tracking-tight">
+              This inbox is private
+            </h1>
+            <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+              Customer enquiries are only visible to the account owner. Sign in
+              with the owner account, or head back to the website.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-5"
+              onClick={() => navigate("/")}
+            >
+              Back to website
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/")}
+                  className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  Back to website
+                </button>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  Customer enquiries
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Paste a public profile link to get the 7-part brand report.
+                  Every quote request submitted through the website lands here.
                 </p>
-
-                <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-                  <Input
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="instagram.com/username"
-                    autoComplete="off"
-                    spellCheck={false}
-                    disabled={isSubmitting}
-                  />
-
-                  {showContext ? (
-                    <Textarea
-                      value={context}
-                      onChange={(e) => setContext(e.target.value)}
-                      placeholder="Optional: paste the bio, a few captions, or key details to sharpen the analysis."
-                      rows={4}
-                      disabled={isSubmitting}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowContext(true)}
-                      className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                    >
-                      + Add details for a sharper report (optional)
-                    </button>
-                  )}
-
-                  {formError && (
-                    <p className="text-sm text-destructive">{formError}</p>
-                  )}
-
-                  <Button
-                    type="submit"
-                    className="w-full gap-2"
-                    disabled={isSubmitting || !url.trim()}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Analysing…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="size-4" />
-                        Generate report
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold tracking-tight">
-                  Recent reports
-                </h2>
-                <span className="text-xs text-muted-foreground">
-                  {analyses?.length ?? 0}
-                </span>
               </div>
+              <div className="flex gap-2">
+                {filters.map((f) => (
+                  <Button
+                    key={f.key}
+                    type="button"
+                    variant={filter === f.key ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilter(f.key)}
+                  >
+                    {f.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
 
-              {analyses === undefined ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                </div>
-              ) : analyses.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/70 p-5 text-sm text-muted-foreground">
-                  No reports yet. Your analyses will show up here.
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {filters.map((f) => (
+                <Card key={f.key} className="border-border/70 shadow-none">
+                  <CardContent className="p-4">
+                    <p className="text-2xl font-semibold tracking-tight">
+                      {f.count}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{f.label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="mt-6 space-y-3">
+              {enquiries === undefined ? (
+                <>
+                  <Skeleton className="h-28 w-full rounded-xl" />
+                  <Skeleton className="h-28 w-full rounded-xl" />
+                </>
+              ) : visible.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-12 text-center">
+                  <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <Inbox className="size-6" />
+                  </span>
+                  <h2 className="mt-4 text-base font-semibold">
+                    {filter === "all"
+                      ? "No enquiries yet"
+                      : `No ${filter} enquiries`}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    New quote requests from the website will appear here.
+                  </p>
                 </div>
               ) : (
-                <div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
-                  {analyses.map((item) => {
-                    const active = item._id === activeId;
-                    return (
-                      <button
-                        key={item._id}
-                        type="button"
-                        onClick={() => setActiveId(item._id)}
-                        className={`group flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition-colors ${
-                          active
-                            ? "border-primary/50 bg-primary/5"
-                            : "border-border/70 hover:border-primary/30 hover:bg-muted/50"
-                        }`}
-                      >
+                visible.map((enq) => (
+                  <Card key={enq._id} className="border-border/70 shadow-none">
+                    <CardContent className="p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {item.username ? `@${item.username}` : item.instagramUrl}
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {formatDate(item.createdAt)}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-semibold">
+                              {enq.name}
+                            </h3>
+                            {enq.status === "new" ? (
+                              <Badge className="border-transparent bg-primary/10 text-primary">
+                                New
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-muted-foreground"
+                              >
+                                Handled
+                              </Badge>
+                            )}
+                            {enq.requirement && (
+                              <Badge
+                                variant="outline"
+                                className="border-border/70"
+                              >
+                                {enq.requirement}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {timeAgo(enq.createdAt)}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <StatusBadge status={item.status} />
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => handleDelete(item._id, e)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                handleDelete(item._id, e as unknown as React.MouseEvent);
-                              }
-                            }}
-                            className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                            aria-label="Delete report"
+                        <div className="flex items-center gap-1">
+                          {enq.status === "new" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() => toggleStatus(enq._id, "handled")}
+                            >
+                              <Check className="size-4" />
+                              Mark handled
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() => toggleStatus(enq._id, "new")}
+                            >
+                              <RotateCcw className="size-4" />
+                              Reopen
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDelete(enq._id)}
+                            aria-label="Delete enquiry"
                           >
                             <Trash2 className="size-4" />
-                          </span>
+                          </Button>
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                      </div>
+
+                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground/80">
+                        {enq.message}
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap gap-3 border-t border-border/60 pt-3 text-sm">
+                        <a
+                          href={`tel:${enq.phone}`}
+                          className="inline-flex items-center gap-1.5 text-foreground/80 hover:text-primary"
+                        >
+                          <Phone className="size-4" />
+                          {enq.phone}
+                        </a>
+                        {enq.email && (
+                          <a
+                            href={`mailto:${enq.email}`}
+                            className="inline-flex items-center gap-1.5 text-foreground/80 hover:text-primary"
+                          >
+                            <Mail className="size-4" />
+                            {enq.email}
+                          </a>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
               )}
             </div>
-          </div>
-
-          {/* Right: report panel */}
-          <Card className="min-h-[32rem] border-border/70 shadow-none">
-            <CardContent className="p-6">
-              {!activeId ? (
-                <EmptyState />
-              ) : activeDoc === undefined || activeDoc?.status === "pending" ? (
-                <LoadingState />
-              ) : activeDoc === null ? (
-                <EmptyState />
-              ) : activeDoc.status === "error" ? (
-                <ErrorState message={activeDoc.error} />
-              ) : activeDoc.report ? (
-                <BrandReport report={activeDoc.report} />
-              ) : (
-                <EmptyState />
-              )}
-            </CardContent>
-          </Card>
-        </div>
+          </>
+        )}
       </main>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: "pending" | "complete" | "error" }) {
-  if (status === "pending") {
-    return (
-      <Badge variant="outline" className="border-border/70 text-muted-foreground">
-        <Loader2 className="mr-1 size-3 animate-spin" />
-        Working
-      </Badge>
-    );
-  }
-  if (status === "error") {
-    return (
-      <Badge variant="outline" className="border-destructive/40 text-destructive">
-        Failed
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-      Ready
-    </Badge>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex h-full min-h-[28rem] flex-col items-center justify-center text-center">
-      <span className="flex size-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#D62976,#962FBF)] text-white">
-        <Instagram className="size-7" />
-      </span>
-      <h2 className="mt-5 text-lg font-semibold tracking-tight">
-        Paste a link to start
-      </h2>
-      <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-        Drop in an Instagram profile and Brand Pulse AI will return a 7-part
-        brand report — personality, audience, offer, colours, content style,
-        website goal and a homepage headline.
-      </p>
-    </div>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-        Reading the profile and writing your report…
-      </div>
-      <Skeleton className="h-28 w-full rounded-2xl" />
-      <div className="grid gap-4 sm:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 w-full rounded-xl" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ErrorState({ message }: { message?: string }) {
-  return (
-    <div className="flex h-full min-h-[28rem] flex-col items-center justify-center text-center">
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
-        <AlertTriangle className="size-6" />
-      </span>
-      <h2 className="mt-4 text-lg font-semibold tracking-tight">
-        Couldn't build that report
-      </h2>
-      <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-        {message ||
-          "Something went wrong while analysing this profile. Check the link and try again."}
-      </p>
     </div>
   );
 }

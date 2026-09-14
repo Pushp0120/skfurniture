@@ -1,11 +1,11 @@
 {
-  "name": "freebuff.com application",
-  "short_name": "freebuff.com",
-  "description": "freebuff.com application",
+  "name": "S K Furniture — Modular Kitchens & PVC Furniture",
+  "short_name": "S K Furniture",
+  "description": "Modular kitchens, waterproof PVC furniture and custom storage built to measure in Bilimora.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#f7f3ec",
+  "theme_color": "#8a5a3a",
   "icons": [
     {
       "src": "/logo.png",
