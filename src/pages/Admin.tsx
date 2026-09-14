@@ -57,31 +57,33 @@ export default function Admin() {
   const stats = useQuery(api.admin.stats, token ? { token } : "skip");
   const gallery = useQuery(api.gallery.list);
   const products = useQuery(api.products.list);
+
+  // A token is present but the server rejected it (expired / invalid).
+  const sessionExpired = !!token && stats === null;
+
   const reviews = useQuery(
     api.admin.listReviews,
-    token ? { token } : "skip",
+    token && !sessionExpired ? { token } : "skip",
   );
   const enquiries = useQuery(
     api.admin.listEnquiries,
-    token ? { token } : "skip",
+    token && !sessionExpired ? { token } : "skip",
   );
   const members = useQuery(
     api.admin.listMembers,
-    token ? { token } : "skip",
+    token && !sessionExpired ? { token } : "skip",
   );
 
-  // Detect an expired / invalid token
+  // Drop a rejected token from storage (no state set inside the effect).
   useEffect(() => {
-    if (token && stats === null) {
-      try {
-        window.localStorage.removeItem(TOKEN_KEY);
-      } catch {
-        // ignore
-      }
-      setToken(null);
-      toast.error("Your admin session expired. Please sign in again.");
+    if (!sessionExpired) return;
+    try {
+      window.localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      // ignore
     }
-  }, [token, stats]);
+    toast.error("Your admin session expired. Please sign in again.");
+  }, [sessionExpired]);
 
   // Login form state
   const [username, setUsername] = useState("");
@@ -132,7 +134,7 @@ export default function Admin() {
     setTab("overview");
   };
 
-  if (!token) {
+  if (!token || sessionExpired) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground">
         <Card className="w-full max-w-sm border-border/70 shadow-lg">
