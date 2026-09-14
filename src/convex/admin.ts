@@ -6,7 +6,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 // The single admin account. Change these two values to set your own login.
 // ---------------------------------------------------------------------------
 export const ADMIN_USERNAME = "admin";
-export const ADMIN_PASSWORD = "skfurniture@2026";
+export const ADMIN_PASSWORD = "Admin@123";
 
 const SESSION_MS = 1000 * 60 * 60 * 12; // 12 hours
 
