@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -157,7 +158,7 @@ export default function Admin() {
                 Admin sign in
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                S K Furniture control panel
+                S KITCHEN POINT control panel
               </p>
             </div>
 
@@ -235,11 +236,9 @@ export default function Admin() {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-              SK
-            </span>
+            <BrandLogo />
             <span className="text-sm font-semibold tracking-tight">
-              S&nbsp;K&nbsp;Furniture · Admin
+              S&nbsp;KITCHEN&nbsp;POINT · Admin
             </span>
           </div>
           <div className="flex items-center gap-2">

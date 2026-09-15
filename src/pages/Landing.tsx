@@ -1,4 +1,5 @@
 import { EnquiryForm } from "@/components/EnquiryForm";
+import { BrandLogo } from "@/components/BrandLogo";
 import { ReviewForm } from "@/components/ReviewForm";
 import { Stars } from "@/components/Stars";
 import { WishlistButton } from "@/components/WishlistButton";
@@ -174,12 +175,10 @@ export default function Landing() {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5">
           <a href="#top" className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-              SK
-            </span>
+            <BrandLogo />
             <span className="flex flex-col leading-none">
               <span className="text-sm font-semibold tracking-tight">
-                S K Furniture
+                S KITCHEN POINT
               </span>
               <span className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                 PVC · Modular Kitchen · Decor
@@ -259,7 +258,7 @@ export default function Landing() {
               <span className="text-primary"> made to fit your home</span>.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
-              S K Furniture designs and builds modular kitchens, waterproof PVC
+              S KITCHEN POINT designs and builds modular kitchens, waterproof PVC
               furniture and storage that fit your walls, your budget and the way
               your family lives.{" "}
               <strong>Quality · Style · Best price.</strong>
@@ -506,7 +505,7 @@ export default function Landing() {
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <motion.div {...fadeUp}>
             <Badge variant="outline" className="border-border/70">
-              Why S K Furniture
+              Why S KITCHEN POINT
             </Badge>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
               Showroom quality, local price
@@ -735,7 +734,7 @@ export default function Landing() {
             className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
           >
             <iframe
-              title="S K Furniture location on Google Maps"
+              title="S KITCHEN POINT location on Google Maps"
               src={MAP_SRC}
               className="h-80 w-full border-0 lg:h-full lg:min-h-[22rem]"
               loading="lazy"
@@ -787,11 +786,9 @@ export default function Landing() {
         <div className="mx-auto grid w-full max-w-6xl gap-8 px-5 py-12 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
             <div className="flex items-center gap-2.5">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-                SK
-              </span>
+              <BrandLogo />
               <span className="text-sm font-semibold tracking-tight">
-                S K Furniture
+                S KITCHEN POINT
               </span>
             </div>
             <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
@@ -861,7 +858,7 @@ export default function Landing() {
         </div>
         <div className="border-t border-border/60">
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-2 px-5 py-5 text-xs text-muted-foreground sm:flex-row">
-            <p>© {new Date().getFullYear()} S K Furniture, Bilimora.</p>
+            <p>© {new Date().getFullYear()} S KITCHEN POINT, Bilimora.</p>
             <p>Quality · Style · Best price</p>
           </div>
         </div>

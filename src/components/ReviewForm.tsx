@@ -113,7 +113,7 @@ export function ReviewForm() {
           id="review-text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="What was your experience with S K Furniture?"
+          placeholder="What was your experience with S KITCHEN POINT?"
           rows={4}
           required
           disabled={status === "submitting"}

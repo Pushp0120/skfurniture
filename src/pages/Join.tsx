@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -88,11 +89,9 @@ export default function Join() {
       <header className="border-b border-border/60">
         <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5">
           <Link to="/" className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-              SK
-            </span>
+            <BrandLogo />
             <span className="text-sm font-semibold tracking-tight">
-              S K Furniture
+              S KITCHEN POINT
             </span>
           </Link>
           <Button asChild variant="ghost" size="sm">
@@ -234,7 +233,7 @@ export default function Join() {
                 <h1 className="mt-4 text-xl font-semibold tracking-tight">
                   {alreadyRegistered
                     ? "You're already registered"
-                    : "Welcome to S K Furniture!"}
+                    : "Welcome to S KITCHEN POINT!"}
                 </h1>
                 <p className="mt-1.5 max-w-xs text-sm text-muted-foreground">
                   {alreadyRegistered

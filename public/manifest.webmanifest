@@ -1,16 +1,16 @@
 {
-  "name": "S K Furniture — Modular Kitchens & PVC Furniture",
-  "short_name": "S K Furniture",
-  "description": "Modular kitchens, waterproof PVC furniture and custom storage built to measure in Bilimora.",
+  "name": "S KITCHEN POINT — PVC Furniture & Modular Kitchens",
+  "short_name": "S KITCHEN POINT",
+  "description": "All type of PVC furniture and aluminium, modular kitchens and custom storage built to measure in Bilimora.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f3ec",
   "theme_color": "#8a5a3a",
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/skp-logo.jpg",
       "sizes": "any",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ]
