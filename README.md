@@ -101,6 +101,47 @@ Set these env vars in production:
   image URLs when the SPA is hosted on a different domain
 - `VITE_API_URL` — build-time; the API base URL when it differs from the SPA origin
 
+## Deploy to Render (free) — full stack in one place
+
+Vercel's static hosting only serves the frontend — the Express API, admin
+panel and image uploads need a real Node server. Render runs everything as
+one service (this repo ships a `render.yaml` blueprint):
+
+**1. Create a free MongoDB Atlas database (2 min)**
+
+1. Sign up at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+   → build the free **M0** cluster (pick Mumbai/ap-south-1, closest to Gujarat).
+2. **Database Access** → Add user (username + a strong password, role
+   "Read and write to any database").
+3. **Network Access** → Add IP → **Allow access from anywhere** (0.0.0.0/0)
+   — required because Render's free plan doesn't have fixed outbound IPs.
+4. **Database → Connect → Drivers** → copy the connection string
+   `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?...` and add
+   `/skfurniture` before the `?` as the database name.
+
+**2. Create the Render service (3 min)**
+
+1. Sign in at [render.com](https://render.com) with GitHub → **New + →**
+   **Blueprint** → pick `Pushp0120/skfurniture` → **Apply**. Render reads
+   `render.yaml` and configures build/start automatically.
+2. When prompted, fill in the env vars:
+   - `MONGODB_URI` — the Atlas string from step 1
+   - `ADMIN_USERNAME` / `ADMIN_PASSWORD` — your real admin login (do **not**
+     reuse the default `admin` / `Admin@123`)
+3. First deploy takes ~5 min. Done — the URL (e.g.
+   `https://skitchenpoint.onrender.com`) serves the site, the API and `/admin`.
+
+**Good to know**
+
+- Free Render services sleep after ~15 min idle; the first visitor waits
+  ~30–60 s for spin-up. Atlas M0 never sleeps.
+- Every push to `main` auto-deploys (see `render.yaml`).
+- Custom domain: Render → Settings → Custom Domains, then point a CNAME at
+  the Render URL. Free TLS included.
+- Prefer manual setup instead of the blueprint? Use build command
+  `npm ci && npm run build`, start command `npm start`, health check path
+  `/api/health`.
+
 ## Routes
 
 | Path | Description |

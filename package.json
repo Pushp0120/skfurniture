@@ -3,13 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "server": "node server/index.js",
     "server:watch": "node --watch server/index.js",
     "dev:all": "node server/dev-all.mjs",
     "build": "tsc -b && vite build",
-    "start": "NODE_ENV=production node server/index.js",
+    "start": "node server/index.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "preview": "vite preview",
