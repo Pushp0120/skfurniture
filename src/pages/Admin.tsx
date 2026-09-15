@@ -5,9 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
-import { useMutation, useQuery } from "convex/react";
+import {
+  mutate,
+  apiSend,
+  useApi,
+} from "@/lib/api";
+import type {
+  AdminStats,
+  Enquiry,
+  GalleryItem,
+  Member,
+  Product,
+  Review,
+} from "@/lib/api";
 import {
   Check,
   ImagePlus,
@@ -42,37 +52,33 @@ function readToken(): string | null {
 export default function Admin() {
   const [token, setToken] = useState<string | null>(() => readToken());
   const [tab, setTab] = useState<Tab>("overview");
+  const [sessionExpired, setSessionExpired] = useState(false);
 
-  const login = useMutation(api.admin.login);
-  const logout = useMutation(api.admin.logout);
-  const generateUploadUrl = useMutation(api.admin.generateUploadUrl);
-  const addGalleryImage = useMutation(api.admin.addGalleryImage);
-  const deleteGalleryImage = useMutation(api.admin.deleteGalleryImage);
-  const updateProduct = useMutation(api.admin.updateProduct);
-  const setReviewStatus = useMutation(api.admin.setReviewStatus);
-  const deleteReview = useMutation(api.admin.deleteReview);
-  const setEnquiryStatus = useMutation(api.admin.setEnquiryStatus);
-  const deleteEnquiry = useMutation(api.admin.deleteEnquiry);
+  const stats = useApi<AdminStats>("/api/admin/stats", {
+    token,
+    enabled: !!token && !sessionExpired,
+    pollMs: 20000,
+    onError: (error) => {
+      if (error instanceof Error && error.message.includes("sign-in")) {
+        setSessionExpired(true);
+      }
+    },
+  });
+  const gallery = useApi<GalleryItem[]>("/api/gallery");
+  const products = useApi<Product[]>("/api/products");
 
-  const stats = useQuery(api.admin.stats, token ? { token } : "skip");
-  const gallery = useQuery(api.gallery.list);
-  const products = useQuery(api.products.list);
-
-  // A token is present but the server rejected it (expired / invalid).
-  const sessionExpired = !!token && stats === null;
-
-  const reviews = useQuery(
-    api.admin.listReviews,
-    token && !sessionExpired ? { token } : "skip",
-  );
-  const enquiries = useQuery(
-    api.admin.listEnquiries,
-    token && !sessionExpired ? { token } : "skip",
-  );
-  const members = useQuery(
-    api.admin.listMembers,
-    token && !sessionExpired ? { token } : "skip",
-  );
+  const reviews = useApi<Review[]>("/api/admin/reviews", {
+    token,
+    enabled: !!token && !sessionExpired,
+  });
+  const enquiries = useApi<Enquiry[]>("/api/admin/enquiries", {
+    token,
+    enabled: !!token && !sessionExpired,
+  });
+  const members = useApi<Member[]>("/api/admin/members", {
+    token,
+    enabled: !!token && !sessionExpired,
+  });
 
   // Drop a rejected token from storage (no state set inside the effect).
   useEffect(() => {
@@ -96,21 +102,22 @@ export default function Admin() {
     setLoginError(null);
     setLoggingIn(true);
     try {
-      const result = await login({ username, password });
+      const result = await apiSend<{ token: string }>("/api/admin/login", {
+        body: { username, password },
+      });
       try {
         window.localStorage.setItem(TOKEN_KEY, result.token);
       } catch {
         // ignore storage failures
       }
       setToken(result.token);
+      setSessionExpired(false);
       setUsername("");
       setPassword("");
       toast.success("Welcome back");
     } catch (err) {
       setLoginError(
-        err instanceof Error
-          ? err.message.replace(/^.*Uncaught Error:\s*/, "")
-          : "Couldn't sign in.",
+        err instanceof Error ? err.message : "Couldn't sign in.",
       );
     } finally {
       setLoggingIn(false);
@@ -120,7 +127,7 @@ export default function Admin() {
   const handleLogout = async () => {
     if (token) {
       try {
-        await logout({ token });
+        await apiSend("/api/admin/logout", { method: "POST", token });
       } catch {
         // ignore
       }
@@ -133,6 +140,9 @@ export default function Admin() {
     setToken(null);
     setTab("overview");
   };
+
+  const authedSend = (path: string, options: { method?: string; body?: unknown }) =>
+    apiSend(path, { ...options, token });
 
   if (!token || sessionExpired) {
     return (
@@ -290,18 +300,12 @@ export default function Admin() {
             <ImagesTab
               token={token}
               gallery={gallery}
-              generateUploadUrl={generateUploadUrl}
-              addGalleryImage={addGalleryImage}
-              deleteGalleryImage={deleteGalleryImage}
+              onRefresh={() => mutate("/api/gallery")}
             />
           )}
 
           {tab === "rates" && (
-            <RatesTab
-              token={token}
-              products={products}
-              updateProduct={updateProduct}
-            />
+            <RatesTab token={token} products={products} authedSend={authedSend} />
           )}
 
           {tab === "reviews" && (
@@ -309,14 +313,23 @@ export default function Admin() {
               reviews={reviews}
               onStatus={async (id, status) => {
                 try {
-                  await setReviewStatus({ token, id, status });
+                  await authedSend(`/api/admin/reviews/${id}`, {
+                    method: "PATCH",
+                    body: { status },
+                  });
+                  mutate("/api/admin/reviews");
+                  mutate("/api/admin/stats");
                 } catch {
                   toast.error("Couldn't update the review");
                 }
               }}
               onDelete={async (id) => {
                 try {
-                  await deleteReview({ token, id });
+                  await authedSend(`/api/admin/reviews/${id}`, {
+                    method: "DELETE",
+                  });
+                  mutate("/api/admin/reviews");
+                  mutate("/api/admin/stats");
                   toast.success("Review deleted");
                 } catch {
                   toast.error("Couldn't delete the review");
@@ -330,14 +343,23 @@ export default function Admin() {
               enquiries={enquiries}
               onStatus={async (id, status) => {
                 try {
-                  await setEnquiryStatus({ token, id, status });
+                  await authedSend(`/api/admin/enquiries/${id}`, {
+                    method: "PATCH",
+                    body: { status },
+                  });
+                  mutate("/api/admin/enquiries");
+                  mutate("/api/admin/stats");
                 } catch {
                   toast.error("Couldn't update the enquiry");
                 }
               }}
               onDelete={async (id) => {
                 try {
-                  await deleteEnquiry({ token, id });
+                  await authedSend(`/api/admin/enquiries/${id}`, {
+                    method: "DELETE",
+                  });
+                  mutate("/api/admin/enquiries");
+                  mutate("/api/admin/stats");
                   toast.success("Enquiry deleted");
                 } catch {
                   toast.error("Couldn't delete the enquiry");
@@ -358,17 +380,7 @@ export default function Admin() {
 function Overview({
   stats,
 }: {
-  stats:
-    | {
-        images: number;
-        products: number;
-        pendingReviews: number;
-        approvedReviews: number;
-        newEnquiries: number;
-        members: number;
-      }
-    | null
-    | undefined;
+  stats: AdminStats | null | undefined;
 }) {
   if (stats === undefined) {
     return (
@@ -407,22 +419,11 @@ function Overview({
 function ImagesTab({
   token,
   gallery,
-  generateUploadUrl,
-  addGalleryImage,
-  deleteGalleryImage,
+  onRefresh,
 }: {
   token: string;
-  gallery: { _id: string; title: string; url: string | null }[] | undefined;
-  generateUploadUrl: (args: { token: string }) => Promise<string>;
-  addGalleryImage: (args: {
-    token: string;
-    title: string;
-    imageId: Id<"_storage">;
-  }) => Promise<unknown>;
-  deleteGalleryImage: (args: {
-    token: string;
-    id: Id<"galleryImages">;
-  }) => Promise<unknown>;
+  gallery: GalleryItem[] | undefined;
+  onRefresh: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
@@ -443,21 +444,13 @@ function ImagesTab({
 
     setBusy(true);
     try {
-      const uploadUrl = await generateUploadUrl({ token });
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!response.ok) throw new Error("Upload failed");
-      const { storageId } = (await response.json()) as { storageId: string };
-      await addGalleryImage({
-        token,
-        title: title.trim() || file.name,
-        imageId: storageId as Id<"_storage">,
-      });
+      const body = new FormData();
+      body.append("title", title.trim() || file.name);
+      body.append("file", file);
+      await apiSend("/api/admin/images", { method: "POST", body, token });
       setTitle("");
       if (fileRef.current) fileRef.current.value = "";
+      onRefresh();
       toast.success("Image uploaded");
     } catch {
       toast.error("Couldn't upload the image.");
@@ -538,10 +531,11 @@ function ImagesTab({
                     aria-label="Delete image"
                     onClick={async () => {
                       try {
-                        await deleteGalleryImage({
+                        await apiSend(`/api/admin/images/${image._id}`, {
+                          method: "DELETE",
                           token,
-                          id: image._id as Id<"galleryImages">,
                         });
+                        onRefresh();
                         toast.success("Image deleted");
                       } catch {
                         toast.error("Couldn't delete the image");
@@ -563,24 +557,14 @@ function ImagesTab({
 function RatesTab({
   token,
   products,
-  updateProduct,
+  authedSend,
 }: {
   token: string;
-  products:
-    | {
-        _id: Id<"products">;
-        name: string;
-        description?: string;
-        price: number;
-      }[]
-    | undefined;
-  updateProduct: (args: {
-    token: string;
-    id: Id<"products">;
-    name: string;
-    description?: string;
-    price: number;
-  }) => Promise<unknown>;
+  products: Product[] | undefined;
+  authedSend: (
+    path: string,
+    options: { method?: string; body?: unknown },
+  ) => Promise<unknown>;
 }) {
   if (products === undefined) {
     return (
@@ -603,7 +587,12 @@ function RatesTab({
           key={product._id}
           product={product}
           onSave={async (args) => {
-            await updateProduct({ token, ...args });
+            await authedSend(`/api/admin/products/${product._id}`, {
+              method: "PATCH",
+              body: args,
+            });
+            mutate("/api/products");
+            mutate("/api/admin/stats");
             toast.success("Rate updated");
           }}
         />
@@ -616,14 +605,8 @@ function ProductRow({
   product,
   onSave,
 }: {
-  product: {
-    _id: Id<"products">;
-    name: string;
-    description?: string;
-    price: number;
-  };
+  product: Product;
   onSave: (args: {
-    id: Id<"products">;
     name: string;
     description?: string;
     price: number;
@@ -638,7 +621,6 @@ function ProductRow({
     setSaving(true);
     try {
       await onSave({
-        id: product._id,
         name,
         description: description.trim() || undefined,
         price: Number(price) || 0,
@@ -699,17 +681,9 @@ function ReviewsTab({
   onStatus,
   onDelete,
 }: {
-  reviews:
-    | {
-        _id: Id<"reviews">;
-        name: string;
-        rating: number;
-        text: string;
-        status: "pending" | "approved";
-      }[]
-    | undefined;
-  onStatus: (id: Id<"reviews">, status: "pending" | "approved") => Promise<void>;
-  onDelete: (id: Id<"reviews">) => Promise<void>;
+  reviews: Review[] | undefined;
+  onStatus: (id: string, status: "pending" | "approved") => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   if (reviews === undefined) {
     return <Skeleton className="h-32 w-full rounded-xl" />;
@@ -804,22 +778,9 @@ function EnquiriesTab({
   onStatus,
   onDelete,
 }: {
-  enquiries:
-    | {
-        _id: Id<"enquiries">;
-        name: string;
-        phone: string;
-        email?: string;
-        requirement?: string;
-        message: string;
-        status: "new" | "handled";
-      }[]
-    | undefined;
-  onStatus: (
-    id: Id<"enquiries">,
-    status: "new" | "handled",
-  ) => Promise<void>;
-  onDelete: (id: Id<"enquiries">) => Promise<void>;
+  enquiries: Enquiry[] | undefined;
+  onStatus: (id: string, status: "new" | "handled") => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   if (enquiries === undefined) {
     return <Skeleton className="h-32 w-full rounded-xl" />;
@@ -910,15 +871,7 @@ function EnquiriesTab({
 function MembersTab({
   members,
 }: {
-  members:
-    | {
-        _id: Id<"members">;
-        name: string;
-        email: string;
-        phone?: string;
-        createdAt: number;
-      }[]
-    | undefined;
+  members: Member[] | undefined;
 }) {
   if (members === undefined) {
     return <Skeleton className="h-32 w-full rounded-xl" />;

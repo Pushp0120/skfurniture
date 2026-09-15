@@ -2,15 +2,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/convex/_generated/api";
+import { apiSend } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useMutation } from "convex/react";
 import { CheckCircle2, Loader2, Send, Star } from "lucide-react";
 import { useState } from "react";
 
 export function ReviewForm() {
-  const submitReview = useMutation(api.reviews.submit);
-
   const [name, setName] = useState("");
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
@@ -26,7 +23,7 @@ export function ReviewForm() {
     setStatus("submitting");
 
     try {
-      await submitReview({ name, rating, text });
+      await apiSend("/api/reviews", { body: { name, rating, text } });
       setName("");
       setText("");
       setRating(5);
@@ -35,7 +32,7 @@ export function ReviewForm() {
       setStatus("idle");
       setError(
         err instanceof Error
-          ? err.message.replace(/^.*Uncaught Error:\s*/, "")
+          ? err.message
           : "Couldn't submit your review. Please try again.",
       );
     }

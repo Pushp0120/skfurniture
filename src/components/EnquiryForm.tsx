@@ -9,8 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/convex/_generated/api";
-import { useMutation } from "convex/react";
+import { apiSend } from "@/lib/api";
 import { CheckCircle2, Loader2, Send } from "lucide-react";
 import { useState } from "react";
 
@@ -24,8 +23,6 @@ const REQUIREMENTS = [
 ];
 
 export function EnquiryForm() {
-  const submitEnquiry = useMutation(api.enquiries.submit);
-
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -51,12 +48,14 @@ export function EnquiryForm() {
     setStatus("submitting");
 
     try {
-      await submitEnquiry({
-        name,
-        phone,
-        email: email.trim() || undefined,
-        requirement: requirement || undefined,
-        message,
+      await apiSend("/api/enquiries", {
+        body: {
+          name,
+          phone,
+          email: email.trim() || undefined,
+          requirement: requirement || undefined,
+          message,
+        },
       });
       setStatus("success");
       reset();
@@ -64,7 +63,7 @@ export function EnquiryForm() {
       setStatus("idle");
       setError(
         err instanceof Error
-          ? err.message.replace(/^.*Uncaught Error:\s*/, "")
+          ? err.message
           : "Something went wrong. Please try again or message us on Instagram.",
       );
     }

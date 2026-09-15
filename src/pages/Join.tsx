@@ -2,8 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/convex/_generated/api";
-import { useMutation } from "convex/react";
+import { apiSend } from "@/lib/api";
 import {
   ArrowRight,
   CheckCircle2,
@@ -17,8 +16,6 @@ import { Link } from "react-router";
 type Step = "details" | "otp" | "done";
 
 export default function Join() {
-  const register = useMutation(api.members.register);
-
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -63,17 +60,22 @@ export default function Join() {
 
     setBusy(true);
     try {
-      const result = await register({
-        name,
-        email,
-        phone: phone.trim() || undefined,
-      });
+      const result = await apiSend<{ alreadyRegistered: boolean }>(
+        "/api/members",
+        {
+          body: {
+            name,
+            email,
+            phone: phone.trim() || undefined,
+          },
+        },
+      );
       setAlreadyRegistered(result.alreadyRegistered);
       setStep("done");
     } catch (err) {
       setError(
         err instanceof Error
-          ? err.message.replace(/^.*Uncaught Error:\s*/, "")
+          ? err.message
           : "Couldn't create your account. Please try again.",
       );
     } finally {

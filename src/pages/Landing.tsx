@@ -13,9 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWishlist } from "@/hooks/use-wishlist";
-import { api } from "@/convex/_generated/api";
+import { useApi } from "@/lib/api";
+import type { GalleryItem, Product, Review } from "@/lib/api";
 import { motion } from "framer-motion";
-import { useMutation, useQuery } from "convex/react";
 import {
   ArrowRight,
   Check,
@@ -34,7 +34,6 @@ import {
   Star,
   Tv,
 } from "lucide-react";
-import { useEffect } from "react";
 import { Link } from "react-router";
 
 const INSTAGRAM_URL = "https://instagram.com/s_kitchen_point_bilimora";
@@ -155,15 +154,10 @@ function formatPrice(value: number) {
 }
 
 export default function Landing() {
-  const gallery = useQuery(api.gallery.list);
-  const products = useQuery(api.products.list);
-  const reviews = useQuery(api.reviews.listApproved);
-  const ensureSeed = useMutation(api.products.ensureSeed);
+  const gallery = useApi<GalleryItem[]>("/api/gallery");
+  const products = useApi<Product[]>("/api/products");
+  const reviews = useApi<Review[]>("/api/reviews", { pollMs: 30000 });
   const { count: wishlistCount } = useWishlist();
-
-  useEffect(() => {
-    ensureSeed();
-  }, [ensureSeed]);
 
   const heroImages = (gallery ?? [])
     .filter((image) => image.url)
