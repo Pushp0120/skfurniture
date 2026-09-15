@@ -101,11 +101,11 @@ Set these env vars in production:
   image URLs when the SPA is hosted on a different domain
 - `VITE_API_URL` — build-time; the API base URL when it differs from the SPA origin
 
-## Deploy to Render (free) — full stack in one place
+## Deploy free on Vercel (recommended) — or Render
 
-Vercel's static hosting only serves the frontend — the Express API, admin
-panel and image uploads need a real Node server. Render runs everything as
-one service (this repo ships a `render.yaml` blueprint):
+The API is Vercel-serverless-ready (`api/index.js` exports the Express app;
+`vercel.json` builds the SPA and routes `/api/*` to it). Both hosts need a
+free MongoDB **Atlas** database either way.
 
 **1. Create a free MongoDB Atlas database (2 min)**
 
@@ -113,34 +113,40 @@ one service (this repo ships a `render.yaml` blueprint):
    → build the free **M0** cluster (pick Mumbai/ap-south-1, closest to Gujarat).
 2. **Database Access** → Add user (username + a strong password, role
    "Read and write to any database").
-3. **Network Access** → Add IP → **Allow access from anywhere** (0.0.0.0/0)
-   — required because Render's free plan doesn't have fixed outbound IPs.
+3. **Network Access** → Add IP → **Allow access from anywhere** (0.0.0.0/0).
 4. **Database → Connect → Drivers** → copy the connection string
    `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?...` and add
    `/skfurniture` before the `?` as the database name.
 
-**2. Create the Render service (3 min)**
+**2a. Deploy on Vercel (5 min)**
 
-1. Sign in at [render.com](https://render.com) with GitHub → **New + →**
-   **Blueprint** → pick `Pushp0120/skfurniture` → **Apply**. Render reads
-   `render.yaml` and configures build/start automatically.
-2. When prompted, fill in the env vars:
+1. Sign in at [vercel.com](https://vercel.com) with GitHub — your repo may
+   already be imported (it was serving the static site before).
+2. Project → **Settings → Environment Variables** — add:
    - `MONGODB_URI` — the Atlas string from step 1
    - `ADMIN_USERNAME` / `ADMIN_PASSWORD` — your real admin login (do **not**
      reuse the default `admin` / `Admin@123`)
-3. First deploy takes ~5 min. Done — the URL (e.g.
-   `https://skitchenpoint.onrender.com`) serves the site, the API and `/admin`.
+3. **Deployments → Redeploy** (the env vars only apply to new builds).
+   `vercel.json` handles the build and the `/api` routing automatically.
+4. Verify: `https://<your-app>.vercel.app/api/health` → `{"ok":true}`.
 
-**Good to know**
+Vercel notes: serverless has a ~4.5 MB request limit (admin image uploads are
+kept at 8 MB locally but are effectively ~4 MB on Vercel — compress photos
+before uploading), and functions cold-start after inactivity (a 1–2 s first
+API call; the page itself is instant from the CDN).
 
-- Free Render services sleep after ~15 min idle; the first visitor waits
-  ~30–60 s for spin-up. Atlas M0 never sleeps.
-- Every push to `main` auto-deploys (see `render.yaml`).
-- Custom domain: Render → Settings → Custom Domains, then point a CNAME at
-  the Render URL. Free TLS included.
-- Prefer manual setup instead of the blueprint? Use build command
-  `npm ci && npm run build`, start command `npm start`, health check path
-  `/api/health`.
+**2b. Or deploy on Render (one always-on service)**
+
+1. Sign in at [render.com](https://render.com) with GitHub → **New + →
+   Blueprint** → pick `Pushp0120/skfurniture` → **Apply**.
+2. Fill in `MONGODB_URI`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` when prompted.
+3. First deploy takes ~5 min — the URL (e.g.
+   `https://skitchenpoint.onrender.com`) serves the site, API and `/admin`.
+
+Render notes: free services sleep after ~15 min idle (first visitor waits
+~30–60 s). Custom domains work the same on both hosts (CNAME + free TLS).
+Prefer manual setup instead of the blueprint? Build `npm ci && npm run build`,
+start `npm start`, health check `/api/health`.
 
 ## Routes
 
