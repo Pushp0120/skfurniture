@@ -261,6 +261,43 @@ let reviewId;
   console.log("✓ image upload → serve → delete (GridFS)");
 }
 
+// 10b. Add gallery image by external URL (talkntea-style)
+{
+  const add = await fetch(`${base}/api/admin/image-links`, {
+    method: "POST",
+    headers: { ...auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ url: "https://example.com/kitchen.jpg", title: "Linked kitchen" }),
+  });
+  assert.equal(add.status, 201);
+  const linked = await json(add);
+  assert.equal(linked.url, "https://example.com/kitchen.jpg");
+  assert.equal(linked.title, "Linked kitchen");
+
+  const bad = await fetch(`${base}/api/admin/image-links`, {
+    method: "POST",
+    headers: { ...auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ url: "not-a-url" }),
+  });
+  assert.equal(bad.status, 400);
+
+  const anon = await fetch(`${base}/api/admin/image-links`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: "https://example.com/x.jpg" }),
+  });
+  assert.equal(anon.status, 401);
+
+  const gallery = await (await fetch(`${base}/api/gallery`)).json();
+  assert.equal(gallery[0].url, "https://example.com/kitchen.jpg");
+
+  const del = await fetch(`${base}/api/admin/images/${linked._id}`, {
+    method: "DELETE",
+    headers: auth,
+  });
+  assert.equal(del.status, 200);
+  console.log("✓ image add by URL (validation + auth + delete)");
+}
+
 // 11. Logout invalidates the token
 {
   await fetch(`${base}/api/admin/logout`, { method: "POST", headers: auth });

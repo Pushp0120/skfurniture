@@ -24,6 +24,7 @@ import {
   ImagePlus,
   Inbox,
   IndianRupee,
+  Link as LinkIcon,
   Loader2,
   Lock,
   LogOut,
@@ -425,8 +426,34 @@ function ImagesTab({
   onRefresh: () => void;
 }) {
   const [title, setTitle] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleAddLink = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const url = linkUrl.trim();
+    if (!/^https?:\/\/.{2,}/i.test(url)) {
+      toast.error("Enter a valid image URL starting with https://");
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiSend("/api/admin/image-links", {
+        method: "POST",
+        token,
+        body: { url, title: title.trim() },
+      });
+      setLinkUrl("");
+      setTitle("");
+      onRefresh();
+      toast.success("Image added from URL");
+    } catch {
+      toast.error("Couldn't add that image URL.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -463,20 +490,36 @@ function ImagesTab({
       <Card className="border-border/70 shadow-none">
         <CardContent className="p-6">
           <h2 className="text-base font-semibold tracking-tight">
-            Upload an image
+            Add an image
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Images appear in the homepage hero and gallery straight away.
+            Paste an image link (like Talk N Tea) or upload a file — images
+            appear in the homepage hero and gallery straight away.
           </p>
-          <div className="mt-4 space-y-2">
-            <Label htmlFor="image-title">Caption (optional)</Label>
+          <form onSubmit={handleAddLink} className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <Input
-              id="image-title"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://example.com/kitchen.jpg"
+              inputMode="url"
+              disabled={busy}
+              required
+            />
+            <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Sage-green wardrobe, Bilimora"
+              placeholder="Caption (optional) — e.g. Sage-green wardrobe"
+              disabled={busy}
             />
-          </div>
+            <Button type="submit" disabled={busy} className="gap-2">
+              {busy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <LinkIcon className="size-4" />
+              )}
+              Add by URL
+            </Button>
+          </form>
           <div className="mt-4">
             <input
               ref={fileRef}

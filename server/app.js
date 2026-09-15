@@ -129,7 +129,10 @@ ProductSchema.index({ order: 1 });
 const GalleryImageSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
-    fileId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    // One of the two is set: `fileId` for uploads stored in GridFS, `url` for
+    // external image links pasted in the admin (talkntea-style).
+    fileId: { type: mongoose.Schema.Types.ObjectId },
+    url: { type: String },
     order: { type: Number, required: true },
     createdAt: { type: Number, default: () => Date.now() },
   },
@@ -292,7 +295,7 @@ app.get(
       images.map((image) => ({
         _id: String(image._id),
         title: image.title,
-        url: imageFileUrl(req, image.fileId),
+        url: image.url || imageFileUrl(req, image.fileId),
       })),
     );
   }),
@@ -479,6 +482,30 @@ app.get(
       approvedReviews: reviews.filter((r) => r.status === "approved").length,
       newEnquiries: enquiries.filter((e) => e.status === "new").length,
       members,
+    });
+  }),
+);
+
+/** Add a gallery image by URL (talkntea-style — no upload needed). */
+app.post(
+  "/api/admin/image-links",
+  requireAdminWrap(),
+  wrap(async (req, res) => {
+    const url = String(req.body?.url ?? "").trim();
+    const title = String(req.body?.title ?? "").trim().slice(0, 120) || "Our work";
+    if (!/^https?:\/\/.{2,}/i.test(url)) {
+      throw new HttpError(400, "Enter a valid image URL (https://…).");
+    }
+    const image = await GalleryImage.create({
+      title,
+      url,
+      order: Date.now(),
+      createdAt: Date.now(),
+    });
+    res.status(201).json({
+      _id: String(image._id),
+      title: image.title,
+      url: image.url,
     });
   }),
 );
