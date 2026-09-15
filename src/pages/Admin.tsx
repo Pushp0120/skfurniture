@@ -235,10 +235,10 @@ export default function Admin() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5">
-          <div className="flex items-center gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <BrandLogo />
-            <span className="text-sm font-semibold tracking-tight">
-              S&nbsp;KITCHEN&nbsp;POINT · Admin
+            <span className="truncate text-sm font-semibold tracking-tight sm:text-base">
+              S KITCHEN POINT · Admin
             </span>
           </div>
           <div className="flex items-center gap-2">

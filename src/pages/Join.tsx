@@ -88,9 +88,9 @@ export default function Join() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border/60">
         <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5">
-          <Link to="/" className="flex items-center gap-2.5">
+          <Link to="/" className="flex min-w-0 items-center gap-2.5">
             <BrandLogo />
-            <span className="text-sm font-semibold tracking-tight">
+            <span className="truncate text-sm font-semibold tracking-tight sm:text-base">
               S KITCHEN POINT
             </span>
           </Link>

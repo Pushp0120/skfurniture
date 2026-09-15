@@ -10,7 +10,10 @@ export function BrandLogo({ className }: { className?: string }) {
     <img
       src="/skp-logo.jpg"
       alt="S KITCHEN POINT logo"
-      className={cn("size-9 shrink-0 rounded-xl object-cover", className)}
+      className={cn(
+        "size-11 shrink-0 rounded-xl object-cover ring-1 ring-border/40",
+        className,
+      )}
     />
   );
 }

@@ -174,13 +174,13 @@ export default function Landing() {
       {/* Nav */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5">
-          <a href="#top" className="flex items-center gap-2.5">
+          <a href="#top" className="flex min-w-0 items-center gap-2.5">
             <BrandLogo />
-            <span className="flex flex-col leading-none">
-              <span className="text-sm font-semibold tracking-tight">
+            <span className="flex min-w-0 flex-col leading-none">
+              <span className="truncate text-sm font-semibold tracking-tight sm:text-base">
                 S KITCHEN POINT
               </span>
-              <span className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              <span className="mt-0.5 hidden truncate text-[10px] uppercase tracking-[0.18em] text-muted-foreground sm:block">
                 PVC · Modular Kitchen · Decor
               </span>
             </span>
@@ -202,7 +202,7 @@ export default function Landing() {
               Contact
             </a>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               asChild
               variant="outline"
@@ -219,7 +219,13 @@ export default function Landing() {
                 )}
               </Link>
             </Button>
-            <Button asChild variant="outline" size="icon" aria-label="Instagram">
+            <Button
+              asChild
+              variant="outline"
+              size="icon"
+              aria-label="Instagram"
+              className="hidden sm:inline-flex"
+            >
               <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
                 <Instagram className="size-4" />
               </a>
@@ -785,9 +791,9 @@ export default function Landing() {
       <footer className="border-t border-border/60">
         <div className="mx-auto grid w-full max-w-6xl gap-8 px-5 py-12 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
-            <div className="flex items-center gap-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
               <BrandLogo />
-              <span className="text-sm font-semibold tracking-tight">
+              <span className="truncate text-sm font-semibold tracking-tight sm:text-base">
                 S KITCHEN POINT
               </span>
             </div>

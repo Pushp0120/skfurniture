@@ -20,9 +20,9 @@ export default function Wishlist() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5">
-          <Link to="/" className="flex items-center gap-2.5">
+          <Link to="/" className="flex min-w-0 items-center gap-2.5">
             <BrandLogo />
-            <span className="text-sm font-semibold tracking-tight">
+            <span className="truncate text-sm font-semibold tracking-tight sm:text-base">
               S KITCHEN POINT
             </span>
           </Link>
