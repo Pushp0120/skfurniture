@@ -58,13 +58,19 @@ const toneStyles: Record<string, string> = {
   cream: "bg-[linear-gradient(145deg,#EFE7DA,#D8CCB8)]",
 };
 
-const fallbackTiles = [
-  { label: "L-shaped modular kitchen", tone: "sage" as const },
-  { label: "Sage-green wardrobe", tone: "sage" as const },
-  { label: "PVC TV unit", tone: "wood" as const },
-  { label: "Compact parallel kitchen", tone: "cream" as const },
-  { label: "Loft & overhead storage", tone: "wood" as const },
-  { label: "Utility & bathroom vanity", tone: "cream" as const },
+type FallbackTile = {
+  label: string;
+  tone: "sage" | "wood" | "cream";
+  img?: string;
+};
+
+const fallbackTiles: FallbackTile[] = [
+  { label: "L-shaped modular kitchen", tone: "sage", img: "/gallery-kitchen-1.jpg" },
+  { label: "Sliding-door wardrobe", tone: "sage", img: "/gallery-wardrobe.jpg" },
+  { label: "PVC TV unit", tone: "wood", img: "/gallery-tv-unit.jpg" },
+  { label: "Compact parallel kitchen", tone: "cream" },
+  { label: "Loft & overhead storage", tone: "wood" },
+  { label: "Utility & bathroom vanity", tone: "cream" },
 ];
 
 const benefits = [
@@ -122,33 +128,6 @@ const faqs = [
     a: "Yes. We are based in Bilimora and install across the surrounding towns and villages. Share your address in the enquiry form and we will confirm a visit slot.",
   },
 ];
-
-function KitchenPanel() {
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-black/5 bg-[linear-gradient(160deg,#F4EEE3,#E4D9C6)] p-5">
-      <div className="grid grid-cols-4 gap-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-14 rounded-md bg-[linear-gradient(160deg,#9CAA93,#75856A)] shadow-inner sm:h-16"
-          />
-        ))}
-      </div>
-      <div className="mt-3 h-3 rounded-full bg-[#2C2A27]" />
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex h-24 flex-col justify-end rounded-md border border-black/5 bg-[#F6F1E8] p-2 sm:h-28"
-          >
-            <div className="mx-auto mb-1 h-1.5 w-8 rounded-full bg-[#C79A6B]" />
-            <div className="h-16 rounded-sm bg-[linear-gradient(160deg,#EFE7DA,#DCD0BC)] sm:h-20" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function formatPrice(value: number) {
   return `₹${value.toLocaleString("en-IN")}`;
@@ -329,7 +308,12 @@ export default function Landing() {
                     )}
                   </div>
                 ) : (
-                  <KitchenPanel />
+                  <img
+                    src="/hero-kitchen.jpg"
+                    alt="Sage-green modular kitchen with wooden shelves built by S KITCHEN POINT"
+                    className="aspect-[4/3] w-full rounded-xl object-cover"
+                    loading="eager"
+                  />
                 )}
               </CardContent>
             </Card>
@@ -491,10 +475,19 @@ export default function Landing() {
                   className="group overflow-hidden rounded-2xl border border-border/70 bg-card"
                 >
                   <div className={`relative flex aspect-[4/3] items-end ${toneStyles[item.tone]}`}>
-                    <div
-                      aria-hidden
-                      className="absolute inset-0 opacity-25 [background-image:repeating-linear-gradient(90deg,rgba(255,255,255,0.4)_0_1px,transparent_1px_22px)]"
-                    />
+                    {item.img ? (
+                      <img
+                        src={item.img}
+                        alt={item.label}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 opacity-25 [background-image:repeating-linear-gradient(90deg,rgba(255,255,255,0.4)_0_1px,transparent_1px_22px)]"
+                      />
+                    )}
                     <div className="relative m-3 rounded-lg bg-black/35 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
                       {item.label}
                     </div>
