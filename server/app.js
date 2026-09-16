@@ -74,6 +74,15 @@ async function initDb() {
   }
 
   // Embedded Postgres (PGlite) — local dev / preview / tests, zero setup.
+  // Not supported on serverless hosts (read-only filesystem) — fail loudly
+  // with an actionable message instead of a generic 500.
+  if (process.env.VERCEL) {
+    throw new Error(
+      "DATABASE_URL is not set in this deployment. Add the Neon database in " +
+        "Vercel → Storage (it injects DATABASE_URL), make sure it is enabled " +
+        "for the Production environment, then redeploy.",
+    );
+  }
   const { PGlite } = await import("@electric-sql/pglite");
   const dataDir = process.env.PGLITE_DATA_DIR || path.join(__dirname, "data", "pg");
   fs.mkdirSync(dataDir, { recursive: true }); // PGlite does not create parents
@@ -110,7 +119,10 @@ function connectDb() {
   return dbReadyPromise;
 }
 app.use((_req, _res, next) => {
-  connectDb().then(() => next(), next);
+  connectDb().then(() => next(), (err) => {
+    err.exposeMessage = true; // database misconfig: show the real cause to the caller
+    next(err);
+  });
 });
 
 const upload = multer({
@@ -706,6 +718,11 @@ app.use((err, _req, res, _next) => {
   }
   if (err?.code === "LIMIT_FILE_SIZE") {
     return res.status(400).json({ error: "Images must be under 8 MB." });
+  }
+  if (err?.exposeMessage) {
+    // Database init failure — surface the cause so hosting problems are
+    // diagnosable from the API response.
+    return res.status(500).json({ error: err.message });
   }
   console.error("[api] Unhandled error:", err);
   res.status(500).json({ error: "Something went wrong. Please try again." });
