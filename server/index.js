@@ -1,6 +1,10 @@
 /**
- * CLI launcher — connects to MongoDB and serves the API + built SPA on one
+ * CLI launcher — connects to Postgres and serves the API + built SPA on one
  * port (local dev and self-hosting, including Render).
+ *
+ * Set DATABASE_URL to a Postgres connection string (Neon works great); if
+ * it is not set, an embedded Postgres (PGlite) is used automatically —
+ * nothing to install or start.
  *
  * Serverless hosts import server/app.js directly instead (see api/index.js).
  */
@@ -12,12 +16,14 @@ const PORT = Number(process.env.PORT || 3001);
 connectDb()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`[api] S K Furniture API listening on http://localhost:${PORT}`);
+      console.log(`[api] S KITCHEN POINT API listening on http://localhost:${PORT}`);
     });
   })
-  .catch(() => {
+  .catch((err) => {
     console.error(
-      "[db] Start MongoDB locally (e.g. `mongod`) or set MONGODB_URI to a MongoDB Atlas connection string in .env.local, then restart the API.",
+      "[db] Could not start the API:",
+      err?.message || err,
+      "\n[db] Check the DATABASE_URL (Postgres connection string) in .env.local, then restart.",
     );
     process.exit(1);
   });

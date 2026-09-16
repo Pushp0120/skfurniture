@@ -1,18 +1,25 @@
 /**
- * S K Furniture — API app (Express + MongoDB)
+ * S KITCHEN POINT — API app (Express + Postgres)
  *
  * The Express app is exported for serverless hosting (Vercel, see
  * api/index.js); server/index.js is the CLI launcher that connects to
- * MongoDB and listens on a port for local/self-hosted runs.
+ * Postgres and listens on a port for local/self-hosted runs.
+ *
+ * Database: any Postgres. On Vercel use the Neon integration — create the
+ * database from the Storage tab and `DATABASE_URL` is injected automatically.
+ * Locally (dev/preview/tests) it falls back to an embedded Postgres (PGlite)
+ * stored in server/data/pg, so nothing needs to be installed or started.
  *
  *   - Public:  products, gallery, reviews, enquiries
  *   - Admin:   login/logout sessions, stats, gallery upload/delete,
  *              product/rates editing, review moderation, enquiry handling
  *
- * Images are stored in MongoDB via GridFS (no external storage needed).
+ * Uploaded images are stored in the database itself (bytea) — no external
+ * storage service needed.
  *
  * Env vars (see .env.example):
- *   MONGODB_URI      — MongoDB connection string (default: mongodb://127.0.0.1:27017/skfurniture)
+ *   DATABASE_URL     — Postgres connection string (Neon on Vercel; optional
+ *                      locally — defaults to the embedded Postgres)
  *   PORT             — API port (default: 3001)
  *   PUBLIC_API_BASE  — public base URL for image links in production (optional)
  *   ADMIN_USERNAME   — admin login username (default: admin)
@@ -22,7 +29,6 @@
 import "dotenv/config";
 
 import express from "express";
-import mongoose from "mongoose";
 import multer from "multer";
 import cors from "cors";
 import crypto from "crypto";
@@ -33,12 +39,49 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = Number(process.env.PORT || 3001);
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/skfurniture";
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@123";
 const SESSION_MS = 1000 * 60 * 60 * 12; // 12 hours, same as before
+
+// ---------------------------------------------------------------------------
+// Database setup — postgres.js for a real Postgres (Neon), embedded PGlite
+// otherwise. Both are exposed through the same `q(text, params) -> rows[]`.
+// ---------------------------------------------------------------------------
+let q;
+let closeDb = async () => {};
+
+function resolveDatabaseUrl() {
+  return (
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    ""
+  );
+}
+
+async function initDb() {
+  const url = resolveDatabaseUrl();
+
+  if (url) {
+    // Real Postgres — Neon on Vercel (connection string carries sslmode).
+    const postgres = (await import("postgres")).default;
+    const sql = postgres(url, { prepare: false });
+    q = async (text, params = []) => sql.unsafe(text, params);
+    closeDb = () => sql.end({ timeout: 1 });
+    console.log("[db] Using Postgres (DATABASE_URL)");
+    return;
+  }
+
+  // Embedded Postgres (PGlite) — local dev / preview / tests, zero setup.
+  const { PGlite } = await import("@electric-sql/pglite");
+  const dataDir = process.env.PGLITE_DATA_DIR || path.join(__dirname, "data", "pg");
+  fs.mkdirSync(dataDir, { recursive: true }); // PGlite does not create parents
+  const db = new PGlite(dataDir);
+  q = async (text, params = []) => (await db.query(text, params)).rows;
+  closeDb = () => db.close();
+  console.log("[db] Using embedded Postgres (PGlite) at", dataDir);
+}
 
 // ---------------------------------------------------------------------------
 // App setup
@@ -48,19 +91,19 @@ app.set("trust proxy", true); // correct req.ip/protocol behind Vercel/Render pr
 app.use(cors()); // open CORS: the SPA may be deployed on another origin
 app.use(express.json({ limit: "1mb" }));
 
-// Lazy MongoDB connection + first-run seeding. On serverless hosts (Vercel)
-// the module loads per cold start; connecting on the first request keeps boot
-// fast and reuses one pooled connection across warm invocations.
+// Lazy database init + first-run seeding. On serverless hosts (Vercel) the
+// module loads per cold start; connecting on the first request keeps boot
+// fast and reuses one connection across warm invocations.
 let dbReadyPromise;
 function connectDb() {
   if (!dbReadyPromise) {
     dbReadyPromise = (async () => {
-      await mongoose.connect(MONGODB_URI);
+      await initDb();
+      await createSchema();
       await ensureSeeded();
-      console.log("[db] Connected to MongoDB");
     })().catch((err) => {
       dbReadyPromise = undefined; // allow a retry on the next request
-      console.error("[db] Could not connect to MongoDB:", err.message);
+      console.error("[db] Could not connect to Postgres:", err.message);
       throw err;
     });
   }
@@ -84,79 +127,69 @@ const upload = multer({
 });
 
 // ---------------------------------------------------------------------------
-// Mongoose models
+// Schema (created idempotently on boot — no migrations to run)
 // ---------------------------------------------------------------------------
-const enquiryStatuses = ["new", "handled"];
-const reviewStatuses = ["pending", "approved"];
-
-const EnquirySchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    phone: { type: String, required: true },
-    email: { type: String },
-    requirement: { type: String },
-    message: { type: String, required: true },
-    status: { type: String, enum: enquiryStatuses, default: "new" },
-    createdAt: { type: Number, default: () => Date.now() },
-  },
-  { versionKey: false },
-);
-EnquirySchema.index({ createdAt: -1 });
-
-const AdminSessionSchema = new mongoose.Schema(
-  {
-    token: { type: String, required: true, unique: true },
-    createdAt: { type: Number, default: () => Date.now() },
-    expiresAt: { type: Number, required: true },
-  },
-  { versionKey: false },
-);
-AdminSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-const ProductSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    description: { type: String },
-    price: { type: Number, required: true },
-    priceNote: { type: String, default: "onwards" },
-    order: { type: Number, required: true },
-    updatedAt: { type: Number, default: () => Date.now() },
-  },
-  { versionKey: false },
-);
-ProductSchema.index({ order: 1 });
-
-const GalleryImageSchema = new mongoose.Schema(
-  {
-    title: { type: String, required: true },
-    // One of the two is set: `fileId` for uploads stored in GridFS, `url` for
-    // external image links pasted in the admin (talkntea-style).
-    fileId: { type: mongoose.Schema.Types.ObjectId },
-    url: { type: String },
-    order: { type: Number, required: true },
-    createdAt: { type: Number, default: () => Date.now() },
-  },
-  { versionKey: false },
-);
-GalleryImageSchema.index({ order: -1 });
-
-const ReviewSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    rating: { type: Number, required: true, min: 1, max: 5 },
-    text: { type: String, required: true },
-    status: { type: String, enum: reviewStatuses, default: "pending" },
-    createdAt: { type: Number, default: () => Date.now() },
-  },
-  { versionKey: false },
-);
-ReviewSchema.index({ createdAt: -1 });
-
-const Enquiry = mongoose.model("Enquiry", EnquirySchema);
-const AdminSession = mongoose.model("AdminSession", AdminSessionSchema);
-const Product = mongoose.model("Product", ProductSchema);
-const GalleryImage = mongoose.model("GalleryImage", GalleryImageSchema);
-const Review = mongoose.model("Review", ReviewSchema);
+async function createSchema() {
+  await q(`
+    CREATE TABLE IF NOT EXISTS products (
+      id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name        TEXT NOT NULL,
+      description TEXT,
+      price       INTEGER NOT NULL,
+      price_note  TEXT NOT NULL DEFAULT 'onwards',
+      "order"     INTEGER NOT NULL,
+      updated_at  BIGINT NOT NULL
+    )
+  `);
+  await q(`
+    CREATE TABLE IF NOT EXISTS gallery_images (
+      id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      title      TEXT NOT NULL,
+      file_id    TEXT,
+      url        TEXT,
+      "order"    BIGINT NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `);
+  await q(`
+    CREATE TABLE IF NOT EXISTS reviews (
+      id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name       TEXT NOT NULL,
+      rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      text       TEXT NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved')),
+      created_at BIGINT NOT NULL
+    )
+  `);
+  await q(`
+    CREATE TABLE IF NOT EXISTS enquiries (
+      id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name        TEXT NOT NULL,
+      phone       TEXT NOT NULL,
+      email       TEXT,
+      requirement TEXT,
+      message     TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','handled')),
+      created_at  BIGINT NOT NULL
+    )
+  `);
+  await q(`
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      token      TEXT PRIMARY KEY,
+      created_at BIGINT NOT NULL,
+      expires_at BIGINT NOT NULL
+    )
+  `);
+  await q(`
+    CREATE TABLE IF NOT EXISTS uploads (
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      data         BYTEA NOT NULL,
+      created_at   BIGINT NOT NULL
+    )
+  `);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -189,8 +222,12 @@ async function requireAdmin(req) {
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
   if (!token) throw new HttpError(401, "Admin sign-in required.");
-  const session = await AdminSession.findOne({ token }).lean();
-  if (!session || session.expiresAt <= Date.now()) {
+  const sessions = await q(
+    `SELECT token, expires_at FROM admin_sessions WHERE token = $1`,
+    [token],
+  );
+  const session = sessions[0];
+  if (!session || Number(session.expires_at) <= Date.now()) {
     throw new HttpError(401, "Admin sign-in required.");
   }
   return session;
@@ -256,33 +293,46 @@ const DEFAULT_PRODUCTS = [
 ];
 
 async function ensureSeeded() {
-  const count = await Product.estimatedDocumentCount();
-  if (count === 0) {
-    await Product.insertMany(
-      DEFAULT_PRODUCTS.map((p) => ({ ...p, updatedAt: Date.now() })),
-    );
+  const [{ count }] = await q(`SELECT count(*)::int AS count FROM products`);
+  if (Number(count) === 0) {
+    for (const p of DEFAULT_PRODUCTS) {
+      await q(
+        `INSERT INTO products (name, description, price, price_note, "order", updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [p.name, p.description, p.price, p.priceNote, p.order, Date.now()],
+      );
+    }
     console.log("[seed] Inserted default services/rates");
   }
 }
 
+const PRODUCT_SELECT = `
+  SELECT id AS "_id", name, description, price,
+         price_note AS "priceNote", "order" AS "order",
+         updated_at AS "updatedAt"
+  FROM products
+`;
+
 app.get(
   "/api/products",
-  wrap(async (req, res) => {
-    const products = await Product.find({}).sort({ order: 1 }).lean();
+  wrap(async (_req, res) => {
+    const products = await q(`${PRODUCT_SELECT} ORDER BY "order" ASC`);
     res.json(products);
   }),
 );
 
-/** Gallery — admin-uploaded images, newest first. */
+/** Gallery — admin-added images, newest first. */
 app.get(
   "/api/gallery",
   wrap(async (req, res) => {
-    const images = await GalleryImage.find({}).sort({ order: -1 }).lean();
+    const images = await q(
+      `SELECT id, title, file_id, url FROM gallery_images ORDER BY "order" DESC`,
+    );
     res.json(
       images.map((image) => ({
-        _id: String(image._id),
+        _id: image.id,
         title: image.title,
-        url: image.url || imageFileUrl(req, image.fileId),
+        url: image.url || imageFileUrl(req, image.file_id),
       })),
     );
   }),
@@ -291,10 +341,11 @@ app.get(
 /** Reviews — approved only, newest first. */
 app.get(
   "/api/reviews",
-  wrap(async (req, res) => {
-    const reviews = await Review.find({ status: "approved" })
-      .sort({ createdAt: -1 })
-      .lean();
+  wrap(async (_req, res) => {
+    const reviews = await q(
+      `SELECT id AS "_id", name, rating, text, status, created_at AS "createdAt"
+       FROM reviews WHERE status = 'approved' ORDER BY created_at DESC`,
+    );
     res.json(reviews);
   }),
 );
@@ -314,14 +365,13 @@ app.post(
       throw new HttpError(400, "Please write a short review.");
     }
 
-    const review = await Review.create({
-      name: name.slice(0, 80),
-      rating,
-      text: text.slice(0, 1000),
-      status: "pending",
-      createdAt: Date.now(),
-    });
-    res.status(201).json({ _id: String(review._id) });
+    const rows = await q(
+      `INSERT INTO reviews (name, rating, text, status, created_at)
+       VALUES ($1, $2, $3, 'pending', $4)
+       RETURNING id`,
+      [name.slice(0, 80), rating, text.slice(0, 1000), Date.now()],
+    );
+    res.status(201).json({ _id: rows[0].id });
   }),
 );
 
@@ -345,42 +395,45 @@ app.post(
       throw new HttpError(400, "Please tell us a little about what you need.");
     }
 
-    const enquiry = await Enquiry.create({
-      name: name.slice(0, 120),
-      phone: phone.slice(0, 40),
-      email: email ? email.slice(0, 160) : undefined,
-      requirement: requirement ? requirement.slice(0, 80) : undefined,
-      message: message.slice(0, 2000),
-      status: "new",
-      createdAt: Date.now(),
-    });
-    res.status(201).json({ _id: String(enquiry._id) });
+    const rows = await q(
+      `INSERT INTO enquiries (name, phone, email, requirement, message, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'new', $6)
+       RETURNING id`,
+      [
+        name.slice(0, 120),
+        phone.slice(0, 40),
+        email ? email.slice(0, 160) : null,
+        requirement ? requirement.slice(0, 80) : null,
+        message.slice(0, 2000),
+        Date.now(),
+      ],
+    );
+    res.status(201).json({ _id: rows[0].id });
   }),
 );
 
 // ---------------------------------------------------------------------------
-// Image download (GridFS)
+// Image download (stored in the database)
 // ---------------------------------------------------------------------------
 app.get(
   "/api/images/:fileId",
   wrap(async (req, res) => {
     const { fileId } = req.params;
-    if (!mongoose.isValidObjectId(fileId)) {
+    if (!/^[0-9a-f-]{36}$/i.test(fileId)) {
       throw new HttpError(404, "Not found");
     }
-    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: "uploads",
-    });
-    const files = await bucket.find({ _id: new mongoose.Types.ObjectId(fileId) }).toArray();
+    const files = await q(
+      `SELECT content_type, data FROM uploads WHERE id = $1`,
+      [fileId],
+    );
     const file = files[0];
     if (!file) throw new HttpError(404, "Not found");
 
-    res.setHeader("Content-Type", file.contentType || "application/octet-stream");
-    res.setHeader("Content-Length", file.length);
+    const data = Buffer.from(file.data);
+    res.setHeader("Content-Type", file.content_type || "application/octet-stream");
+    res.setHeader("Content-Length", data.length);
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    const stream = bucket.openDownloadStream(file._id);
-    stream.on("error", () => res.status(404).end());
-    stream.pipe(res);
+    res.end(data);
   }),
 );
 
@@ -397,11 +450,11 @@ app.post(
       throw new HttpError(401, "Incorrect username or password.");
     }
     const token = crypto.randomBytes(24).toString("hex");
-    await AdminSession.create({
-      token,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + SESSION_MS,
-    });
+    await q(`DELETE FROM admin_sessions WHERE expires_at <= $1`, [Date.now()]);
+    await q(
+      `INSERT INTO admin_sessions (token, created_at, expires_at) VALUES ($1, $2, $3)`,
+      [token, Date.now(), Date.now() + SESSION_MS],
+    );
     res.json({ token });
   }),
 );
@@ -412,7 +465,7 @@ app.post(
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
     if (token) {
-      await AdminSession.deleteOne({ token });
+      await q(`DELETE FROM admin_sessions WHERE token = $1`, [token]);
     }
     res.json({ ok: true });
   }),
@@ -422,21 +475,26 @@ app.get(
   "/api/admin/stats",
   wrap(async (req, res) => {
     await requireAdmin(req);
-    const [images, products, reviews, enquiries] = await Promise.all([
-      GalleryImage.countDocuments(),
-      Product.countDocuments(),
-      Review.find({}).select("status").lean(),
-      Enquiry.find({}).select("status").lean(),
-    ]);
-    res.json({
-      images,
-      products,
-      pendingReviews: reviews.filter((r) => r.status === "pending").length,
-      approvedReviews: reviews.filter((r) => r.status === "approved").length,
-      newEnquiries: enquiries.filter((e) => e.status === "new").length,
-    });
+    const one = async (sqlText) =>
+      Number((await q(sqlText))[0].count);
+    const [images, products, pendingReviews, approvedReviews, newEnquiries] =
+      await Promise.all([
+        one(`SELECT count(*)::int AS count FROM gallery_images`),
+        one(`SELECT count(*)::int AS count FROM products`),
+        one(`SELECT count(*)::int AS count FROM reviews WHERE status = 'pending'`),
+        one(`SELECT count(*)::int AS count FROM reviews WHERE status = 'approved'`),
+        one(`SELECT count(*)::int AS count FROM enquiries WHERE status = 'new'`),
+      ]);
+    res.json({ images, products, pendingReviews, approvedReviews, newEnquiries });
   }),
 );
+
+function requireAdminWrap() {
+  return wrap(async (req, _res, next) => {
+    await requireAdmin(req);
+    next();
+  });
+}
 
 /** Add a gallery image by URL (talkntea-style — no upload needed). */
 app.post(
@@ -448,17 +506,13 @@ app.post(
     if (!/^https?:\/\/.{2,}/i.test(url)) {
       throw new HttpError(400, "Enter a valid image URL (https://…).");
     }
-    const image = await GalleryImage.create({
-      title,
-      url,
-      order: Date.now(),
-      createdAt: Date.now(),
-    });
-    res.status(201).json({
-      _id: String(image._id),
-      title: image.title,
-      url: image.url,
-    });
+    const rows = await q(
+      `INSERT INTO gallery_images (title, url, "order", created_at)
+       VALUES ($1, $2, $3, $4) RETURNING id, title, url`,
+      [title, url, Date.now(), Date.now()],
+    );
+    const image = rows[0];
+    res.status(201).json({ _id: image.id, title: image.title, url: image.url });
   }),
 );
 
@@ -471,57 +525,43 @@ app.post(
     if (!req.file) throw new HttpError(400, "Please choose an image file.");
     const title = String(req.body?.title ?? "").trim().slice(0, 120) || "Our work";
 
-    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: "uploads",
-    });
-    const fileId = await new Promise((resolve, reject) => {
-      const uploadStream = bucket.openUploadStream(req.file.originalname, {
-        contentType: req.file.mimetype,
-      });
-      uploadStream.end(req.file.buffer, (err) =>
-        err ? reject(err) : resolve(uploadStream.id),
-      );
-    });
-
-    const image = await GalleryImage.create({
-      title,
-      fileId,
-      order: Date.now(),
-      createdAt: Date.now(),
-    });
+    const fileId = crypto.randomUUID();
+    await q(
+      `INSERT INTO uploads (id, name, content_type, data, created_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [fileId, req.file.originalname, req.file.mimetype, req.file.buffer, Date.now()],
+    );
+    const rows = await q(
+      `INSERT INTO gallery_images (title, file_id, "order", created_at)
+       VALUES ($1, $2, $3, $4) RETURNING id, title`,
+      [title, fileId, Date.now(), Date.now()],
+    );
+    const image = rows[0];
     res.status(201).json({
-      _id: String(image._id),
+      _id: image.id,
       title: image.title,
       url: imageFileUrl(req, fileId),
     });
   }),
 );
 
-function requireAdminWrap() {
-  return wrap(async (req, _res, next) => {
-    await requireAdmin(req);
-    next();
-  });
-}
-
 app.delete(
   "/api/admin/images/:id",
   requireAdminWrap(),
   wrap(async (req, res) => {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) throw new HttpError(404, "Not found");
-    const image = await GalleryImage.findById(id);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(404, "Not found");
+    const images = await q(
+      `SELECT id, file_id FROM gallery_images WHERE id = $1`,
+      [id],
+    );
+    const image = images[0];
     if (!image) throw new HttpError(404, "Not found");
 
-    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: "uploads",
-    });
-    try {
-      await bucket.delete(image.fileId);
-    } catch {
-      // ignore missing file
+    if (image.file_id) {
+      await q(`DELETE FROM uploads WHERE id = $1`, [image.file_id]);
     }
-    await image.deleteOne();
+    await q(`DELETE FROM gallery_images WHERE id = $1`, [id]);
     res.json({ ok: true });
   }),
 );
@@ -531,7 +571,7 @@ app.patch(
   requireAdminWrap(),
   wrap(async (req, res) => {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) throw new HttpError(404, "Not found");
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(404, "Not found");
     const name = String(req.body?.name ?? "").trim();
     const description = String(req.body?.description ?? "").trim();
     const price = Math.round(Number(req.body?.price));
@@ -541,18 +581,16 @@ app.patch(
       throw new HttpError(400, "Enter a valid price.");
     }
 
-    const product = await Product.findByIdAndUpdate(
-      id,
-      {
-        name: name.slice(0, 120) || "Service",
-        description: description ? description.slice(0, 400) : undefined,
-        price,
-        updatedAt: Date.now(),
-      },
-      { new: true },
+    const updated = await q(
+      `UPDATE products SET name = $2, description = $3, price = $4, updated_at = $5
+       WHERE id = $1
+       RETURNING id AS "_id", name, description, price,
+                 price_note AS "priceNote", "order" AS "order",
+                 updated_at AS "updatedAt"`,
+      [id, name.slice(0, 120) || "Service", description ? description.slice(0, 400) : null, price, Date.now()],
     );
-    if (!product) throw new HttpError(404, "Not found");
-    res.json(product);
+    if (!updated[0]) throw new HttpError(404, "Not found");
+    res.json(updated[0]);
   }),
 );
 
@@ -562,12 +600,16 @@ app.patch(
   wrap(async (req, res) => {
     const { id } = req.params;
     const status = String(req.body?.status);
-    if (!reviewStatuses.includes(status)) {
+    if (!["pending", "approved"].includes(status)) {
       throw new HttpError(400, "Invalid status.");
     }
-    const review = await Review.findByIdAndUpdate(id, { status }, { new: true });
-    if (!review) throw new HttpError(404, "Not found");
-    res.json(review);
+    const rows = await q(
+      `UPDATE reviews SET status = $2 WHERE id = $1
+       RETURNING id AS "_id", name, rating, text, status, created_at AS "createdAt"`,
+      [id, status],
+    );
+    if (!rows[0]) throw new HttpError(404, "Not found");
+    res.json(rows[0]);
   }),
 );
 
@@ -576,8 +618,8 @@ app.delete(
   requireAdminWrap(),
   wrap(async (req, res) => {
     const { id } = req.params;
-    const review = await Review.findByIdAndDelete(id);
-    if (!review) throw new HttpError(404, "Not found");
+    const rows = await q(`DELETE FROM reviews WHERE id = $1 RETURNING id`, [id]);
+    if (!rows[0]) throw new HttpError(404, "Not found");
     res.json({ ok: true });
   }),
 );
@@ -586,7 +628,10 @@ app.get(
   "/api/admin/reviews",
   wrap(async (req, res) => {
     await requireAdmin(req);
-    const reviews = await Review.find({}).sort({ createdAt: -1 }).lean();
+    const reviews = await q(
+      `SELECT id AS "_id", name, rating, text, status, created_at AS "createdAt"
+       FROM reviews ORDER BY created_at DESC`,
+    );
     res.json(reviews);
   }),
 );
@@ -595,7 +640,11 @@ app.get(
   "/api/admin/enquiries",
   wrap(async (req, res) => {
     await requireAdmin(req);
-    const enquiries = await Enquiry.find({}).sort({ createdAt: -1 }).lean();
+    const enquiries = await q(
+      `SELECT id AS "_id", name, phone, email, requirement, message, status,
+              created_at AS "createdAt"
+       FROM enquiries ORDER BY created_at DESC`,
+    );
     res.json(enquiries);
   }),
 );
@@ -606,12 +655,17 @@ app.patch(
   wrap(async (req, res) => {
     const { id } = req.params;
     const status = String(req.body?.status);
-    if (!enquiryStatuses.includes(status)) {
+    if (!["new", "handled"].includes(status)) {
       throw new HttpError(400, "Invalid status.");
     }
-    const enquiry = await Enquiry.findByIdAndUpdate(id, { status }, { new: true });
-    if (!enquiry) throw new HttpError(404, "Not found");
-    res.json(enquiry);
+    const rows = await q(
+      `UPDATE enquiries SET status = $2 WHERE id = $1
+       RETURNING id AS "_id", name, phone, email, requirement, message, status,
+                 created_at AS "createdAt"`,
+      [id, status],
+    );
+    if (!rows[0]) throw new HttpError(404, "Not found");
+    res.json(rows[0]);
   }),
 );
 
@@ -620,8 +674,8 @@ app.delete(
   requireAdminWrap(),
   wrap(async (req, res) => {
     const { id } = req.params;
-    const enquiry = await Enquiry.findByIdAndDelete(id);
-    if (!enquiry) throw new HttpError(404, "Not found");
+    const rows = await q(`DELETE FROM enquiries WHERE id = $1 RETURNING id`, [id]);
+    if (!rows[0]) throw new HttpError(404, "Not found");
     res.json({ ok: true });
   }),
 );
@@ -653,9 +707,6 @@ app.use((err, _req, res, _next) => {
   if (err?.code === "LIMIT_FILE_SIZE") {
     return res.status(400).json({ error: "Images must be under 8 MB." });
   }
-  if (err?.name === "ValidationError" || err?.name === "CastError") {
-    return res.status(400).json({ error: "Invalid request." });
-  }
   console.error("[api] Unhandled error:", err);
   res.status(500).json({ error: "Something went wrong. Please try again." });
 });
@@ -665,4 +716,4 @@ app.use((err, _req, res, _next) => {
 // request; server/index.js is the CLI launcher that connects and listens.
 // ---------------------------------------------------------------------------
 export default app;
-export { connectDb };
+export { connectDb, closeDb };

@@ -6,7 +6,7 @@
  *     then the data, and re-fetches on window focus / poll.
  *   - mutations return the parsed response or throw `Error(message)`.
  *
- * The backend is an Express + MongoDB server (see server/index.js).
+ * The backend is an Express + Postgres server (see server/index.js).
  * Set `VITE_API_URL` (e.g. "http://localhost:3001") when the API runs
  * on another origin; defaults to same-origin (the server also serves
  * the built SPA in production).
@@ -172,7 +172,7 @@ export function useApi<T>(path: string | null, options: UseApiOptions = {}): T |
 }
 
 // ---------------------------------------------------------------------------
-// Shared types (mirror the MongoDB documents returned by the API)
+// Shared types (mirror the rows returned by the API)
 // ---------------------------------------------------------------------------
 
 export interface Product {

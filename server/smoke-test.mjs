@@ -1,15 +1,17 @@
 /**
- * End-to-end smoke test for server/index.js using an in-memory MongoDB.
+ * End-to-end smoke test for server/index.js using an embedded Postgres.
  *
  *   node server/smoke-test.mjs
  *
- * Starts a throwaway MongoDB, boots the API, and exercises every endpoint:
- * seeding, admin login, products, reviews, enquiries, image
+ * Boots the API (embedded Postgres, throwaway data dir) and exercises every
+ * endpoint: seeding, admin login, products, reviews, enquiries, image
  * upload/serve/delete. Exits 0 on success, 1 on failure.
  */
 
 import assert from "assert";
-import { MongoMemoryServer } from "mongodb-memory-server";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 process.env.PORT = "3099";
 process.env.ADMIN_USERNAME = "admin";
@@ -17,8 +19,9 @@ process.env.ADMIN_PASSWORD = "test-pass";
 
 const base = "http://localhost:3099";
 
-const memoryServer = await MongoMemoryServer.create();
-process.env.MONGODB_URI = memoryServer.getUri("skfurniture_test");
+// Isolated throwaway data dir for the embedded Postgres.
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "skp-test-"));
+process.env.PGLITE_DATA_DIR = dataDir;
 
 // Import after env vars are set so the server picks them up.
 await import("./index.js");
@@ -194,7 +197,7 @@ let reviewId;
   console.log("✓ enquiry submit → handle → delete");
 }
 
-// 9. Image upload → serve → delete (GridFS)
+// 9. Image upload → serve → delete (stored in the database)
 {
   // 1x1 transparent PNG
   const pngBase64 =
@@ -231,7 +234,7 @@ let reviewId;
 
   const gone = await fetch(image.url);
   assert.equal(gone.status, 404);
-  console.log("✓ image upload → serve → delete (GridFS)");
+  console.log("✓ image upload → serve → delete (stored in the database)");
 }
 
 // 10b. Add gallery image by external URL (talkntea-style)
@@ -280,4 +283,9 @@ let reviewId;
 }
 
 console.log("\nAll smoke tests passed ✅");
+
+// Shut down cleanly and remove the throwaway data dir.
+const { closeDb } = await import("./app.js");
+await closeDb().catch(() => {});
+fs.rmSync(dataDir, { recursive: true, force: true });
 process.exit(0);
