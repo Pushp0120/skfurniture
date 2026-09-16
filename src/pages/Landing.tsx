@@ -1,8 +1,8 @@
 import { EnquiryForm } from "@/components/EnquiryForm";
+import { InstagramIcon, WhatsAppIcon } from "@/components/BrandIcons";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ReviewForm } from "@/components/ReviewForm";
 import { Stars } from "@/components/Stars";
-import { WishlistButton } from "@/components/WishlistButton";
 import {
   Accordion,
   AccordionContent,
@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useWishlist } from "@/hooks/use-wishlist";
 import { useApi } from "@/lib/api";
 import type { GalleryItem, Product, Review } from "@/lib/api";
 import { motion } from "framer-motion";
@@ -24,8 +23,6 @@ import {
   CookingPot,
   DoorOpen,
   Hammer,
-  Heart,
-  Instagram,
   MapPin,
   Quote,
   Ruler,
@@ -38,6 +35,7 @@ import {
 import { Link } from "react-router";
 
 const INSTAGRAM_URL = "https://instagram.com/s_kitchen_point_bilimora";
+const WHATSAPP_URL = "https://wa.me/85111763736";
 const ADDRESS =
   "Shop No. 15, Ground Floor, Shree Vinayak Homes, Opp. ITI, Atalia, Bilimora 396321";
 const MAP_SRC =
@@ -68,9 +66,8 @@ const fallbackTiles: FallbackTile[] = [
   { label: "L-shaped modular kitchen", tone: "sage", img: "/gallery-kitchen-1.jpg" },
   { label: "Sliding-door wardrobe", tone: "sage", img: "/gallery-wardrobe.jpg" },
   { label: "PVC TV unit", tone: "wood", img: "/gallery-tv-unit.jpg" },
-  { label: "Compact parallel kitchen", tone: "cream" },
-  { label: "Loft & overhead storage", tone: "wood" },
-  { label: "Utility & bathroom vanity", tone: "cream" },
+  { label: "Under-stair storage", tone: "wood", img: "/gallery-storage-1.jpg" },
+  { label: "Decorative door & wall panelling", tone: "cream", img: "/gallery-door-1.jpg" },
 ];
 
 const benefits = [
@@ -137,7 +134,6 @@ export default function Landing() {
   const gallery = useApi<GalleryItem[]>("/api/gallery");
   const products = useApi<Product[]>("/api/products");
   const reviews = useApi<Review[]>("/api/reviews", { pollMs: 30000 });
-  const { count: wishlistCount } = useWishlist();
 
   const heroImages = (gallery ?? [])
     .filter((image) => image.url)
@@ -186,27 +182,22 @@ export default function Landing() {
               asChild
               variant="outline"
               size="icon"
-              className="relative"
-              aria-label="Wishlist"
+              aria-label="Instagram"
+              className="hidden sm:inline-flex"
             >
-              <Link to="/wishlist">
-                <Heart className="size-4" />
-                {wishlistCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                    {wishlistCount}
-                  </span>
-                )}
-              </Link>
+              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
+                <InstagramIcon className="size-4" />
+              </a>
             </Button>
             <Button
               asChild
               variant="outline"
               size="icon"
-              aria-label="Instagram"
+              aria-label="Chat on WhatsApp"
               className="hidden sm:inline-flex"
             >
-              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
-                <Instagram className="size-4" />
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                <WhatsAppIcon className="size-4" />
               </a>
             </Button>
             <Button asChild size="sm" className="gap-1.5">
@@ -260,8 +251,14 @@ export default function Landing() {
               </Button>
               <Button asChild size="lg" variant="outline" className="gap-2">
                 <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
-                  <Instagram className="size-4" />
+                  <InstagramIcon className="size-4" />
                   Instagram
+                </a>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="gap-2">
+                <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                  <WhatsAppIcon className="size-4" />
+                  WhatsApp
                 </a>
               </Button>
             </div>
@@ -356,16 +353,9 @@ export default function Landing() {
               What we build &amp; what it costs
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Transparent starting rates. Tap the heart on anything you like to
-              save it to your wishlist.
+              Transparent starting rates for every service we offer.
             </p>
           </div>
-          <Button asChild variant="outline" className="gap-2 self-start sm:self-auto">
-            <Link to="/wishlist">
-              <Heart className="size-4" />
-              My wishlist{wishlistCount > 0 ? ` (${wishlistCount})` : ""}
-            </Link>
-          </Button>
         </motion.div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
@@ -392,14 +382,6 @@ export default function Landing() {
                               {product.name}
                             </h3>
                           </div>
-                          <WishlistButton
-                            item={{
-                              id: product._id,
-                              name: product.name,
-                              price: product.price,
-                              priceNote: product.priceNote,
-                            }}
-                          />
                         </div>
                         {product.description && (
                           <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -708,8 +690,14 @@ export default function Landing() {
               </div>
               <div className="flex flex-wrap gap-3 pt-1">
                 <Button asChild className="gap-2">
+                  <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                    <WhatsAppIcon className="size-4" />
+                    Chat on WhatsApp
+                  </a>
+                </Button>
+                <Button asChild variant="outline" className="gap-2">
                   <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
-                    <Instagram className="size-4" />
+                    <InstagramIcon className="size-4" />
                     Message on Instagram
                   </a>
                 </Button>
@@ -814,11 +802,6 @@ export default function Landing() {
                   Reviews
                 </a>
               </li>
-              <li>
-                <Link to="/wishlist" className="hover:text-foreground">
-                  Wishlist
-                </Link>
-              </li>
             </ul>
           </div>
           <div>
@@ -826,23 +809,29 @@ export default function Landing() {
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>
                 <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 hover:text-foreground"
+                >
+                  <WhatsAppIcon className="size-3.5" />
+                  WhatsApp
+                </a>
+              </li>
+              <li>
+                <a
                   href={INSTAGRAM_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 hover:text-foreground"
                 >
-                  <Instagram className="size-3.5" />
+                  <InstagramIcon className="size-3.5" />
                   Instagram
                 </a>
               </li>
               <li className="flex items-start gap-1.5">
                 <Sofa className="mt-0.5 size-3.5 shrink-0" />
                 <span>Atalia, Bilimora 396321</span>
-              </li>
-              <li>
-                <Link to="/join" className="hover:text-foreground">
-                  Create an account
-                </Link>
               </li>
               <li>
                 <Link

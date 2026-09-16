@@ -4,7 +4,7 @@
  *   node server/smoke-test.mjs
  *
  * Starts a throwaway MongoDB, boots the API, and exercises every endpoint:
- * seeding, admin login, products, reviews, enquiries, members, image
+ * seeding, admin login, products, reviews, enquiries, image
  * upload/serve/delete. Exits 0 on success, 1 on failure.
  */
 
@@ -101,7 +101,6 @@ const auth = { Authorization: `Bearer ${token}` };
   const stats = await json(res);
   assert.equal(stats.products, 4);
   assert.equal(stats.images, 0);
-  assert.equal(stats.members, 0);
   console.log("✓ admin stats");
 }
 
@@ -195,33 +194,7 @@ let reviewId;
   console.log("✓ enquiry submit → handle → delete");
 }
 
-// 9. Member registration (new + duplicate)
-{
-  const first = await fetch(`${base}/api/members`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "Amit", email: "Amit@Example.com", phone: "9999999999" }),
-  });
-  assert.equal(first.status, 201);
-  assert.equal((await json(first)).alreadyRegistered, false);
-
-  const dup = await fetch(`${base}/api/members`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "Amit", email: "amit@example.com" }),
-  });
-  assert.equal(dup.status, 200);
-  assert.equal((await json(dup)).alreadyRegistered, true);
-
-  const members = await (
-    await fetch(`${base}/api/admin/members`, { headers: auth })
-  ).json();
-  assert.equal(members.length, 1);
-  assert.equal(members[0].email, "amit@example.com");
-  console.log("✓ member registration + duplicate detection (email normalised)");
-}
-
-// 10. Image upload → serve → delete (GridFS)
+// 9. Image upload → serve → delete (GridFS)
 {
   // 1x1 transparent PNG
   const pngBase64 =
@@ -298,7 +271,7 @@ let reviewId;
   console.log("✓ image add by URL (validation + auth + delete)");
 }
 
-// 11. Logout invalidates the token
+// 10. Logout invalidates the token
 {
   await fetch(`${base}/api/admin/logout`, { method: "POST", headers: auth });
   const res = await fetch(`${base}/api/admin/stats`, { headers: auth });

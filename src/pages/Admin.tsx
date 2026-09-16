@@ -15,7 +15,6 @@ import type {
   AdminStats,
   Enquiry,
   GalleryItem,
-  Member,
   Product,
   Review,
 } from "@/lib/api";
@@ -33,7 +32,6 @@ import {
   Star,
   Trash2,
   Upload,
-  Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -41,7 +39,7 @@ import { toast } from "sonner";
 
 const TOKEN_KEY = "skf-admin-token";
 
-type Tab = "overview" | "images" | "rates" | "reviews" | "enquiries" | "members";
+type Tab = "overview" | "images" | "rates" | "reviews" | "enquiries";
 
 function readToken(): string | null {
   try {
@@ -74,10 +72,6 @@ export default function Admin() {
     enabled: !!token && !sessionExpired,
   });
   const enquiries = useApi<Enquiry[]>("/api/admin/enquiries", {
-    token,
-    enabled: !!token && !sessionExpired,
-  });
-  const members = useApi<Member[]>("/api/admin/members", {
     token,
     enabled: !!token && !sessionExpired,
   });
@@ -229,7 +223,6 @@ export default function Admin() {
       icon: Inbox,
       badge: stats?.newEnquiries,
     },
-    { key: "members", label: "Members", icon: Users, badge: stats?.members },
   ];
 
   return (
@@ -368,7 +361,6 @@ export default function Admin() {
             />
           )}
 
-          {tab === "members" && <MembersTab members={members} />}
         </div>
       </main>
     </div>
@@ -399,7 +391,6 @@ function Overview({
     { label: "Pending reviews", value: stats.pendingReviews },
     { label: "Approved reviews", value: stats.approvedReviews },
     { label: "New enquiries", value: stats.newEnquiries },
-    { label: "Members", value: stats.members },
   ];
 
   return (
@@ -906,50 +897,6 @@ function EnquiriesTab({
           </CardContent>
         </Card>
       ))}
-    </div>
-  );
-}
-
-function MembersTab({
-  members,
-}: {
-  members: Member[] | undefined;
-}) {
-  if (members === undefined) {
-    return <Skeleton className="h-32 w-full rounded-xl" />;
-  }
-  if (members.length === 0) {
-    return (
-      <p className="rounded-xl border border-dashed border-border/70 p-6 text-sm text-muted-foreground">
-        No registered members yet.
-      </p>
-    );
-  }
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-border/70">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <th className="px-4 py-3 font-medium">Name</th>
-            <th className="px-4 py-3 font-medium">Email</th>
-            <th className="px-4 py-3 font-medium">Phone</th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((member) => (
-            <tr key={member._id} className="border-t border-border/60">
-              <td className="px-4 py-3 font-medium">{member.name}</td>
-              <td className="px-4 py-3 text-muted-foreground">
-                {member.email}
-              </td>
-              <td className="px-4 py-3 text-muted-foreground">
-                {member.phone || "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

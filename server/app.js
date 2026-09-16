@@ -5,7 +5,7 @@
  * api/index.js); server/index.js is the CLI launcher that connects to
  * MongoDB and listens on a port for local/self-hosted runs.
  *
- *   - Public:  products, gallery, reviews, members, enquiries
+ *   - Public:  products, gallery, reviews, enquiries
  *   - Admin:   login/logout sessions, stats, gallery upload/delete,
  *              product/rates editing, review moderation, enquiry handling
  *
@@ -152,24 +152,11 @@ const ReviewSchema = new mongoose.Schema(
 );
 ReviewSchema.index({ createdAt: -1 });
 
-const MemberSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    email: { type: String, required: true },
-    phone: { type: String },
-    createdAt: { type: Number, default: () => Date.now() },
-  },
-  { versionKey: false },
-);
-MemberSchema.index({ email: 1 }, { unique: true });
-MemberSchema.index({ createdAt: -1 });
-
 const Enquiry = mongoose.model("Enquiry", EnquirySchema);
 const AdminSession = mongoose.model("AdminSession", AdminSessionSchema);
 const Product = mongoose.model("Product", ProductSchema);
 const GalleryImage = mongoose.model("GalleryImage", GalleryImageSchema);
 const Review = mongoose.model("Review", ReviewSchema);
-const Member = mongoose.model("Member", MemberSchema);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -338,39 +325,6 @@ app.post(
   }),
 );
 
-/** Members — registered customers. */
-app.post(
-  "/api/members",
-  wrap(async (req, res) => {
-    const name = String(req.body?.name ?? "").trim();
-    const email = String(req.body?.email ?? "").trim().toLowerCase();
-    const phone = String(req.body?.phone ?? "").trim();
-
-    if (name.length < 2) {
-      throw new HttpError(400, "Please enter your name.");
-    }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      throw new HttpError(400, "Please enter a valid email address.");
-    }
-
-    const existing = await Member.findOne({ email }).lean();
-    if (existing) {
-      return res.json({
-        id: String(existing._id),
-        alreadyRegistered: true,
-      });
-    }
-
-    const member = await Member.create({
-      name: name.slice(0, 80),
-      email: email.slice(0, 160),
-      phone: phone ? phone.slice(0, 40) : undefined,
-      createdAt: Date.now(),
-    });
-    res.status(201).json({ id: String(member._id), alreadyRegistered: false });
-  }),
-);
-
 /** Enquiries — submitted from the contact form. */
 app.post(
   "/api/enquiries",
@@ -468,12 +422,11 @@ app.get(
   "/api/admin/stats",
   wrap(async (req, res) => {
     await requireAdmin(req);
-    const [images, products, reviews, enquiries, members] = await Promise.all([
+    const [images, products, reviews, enquiries] = await Promise.all([
       GalleryImage.countDocuments(),
       Product.countDocuments(),
       Review.find({}).select("status").lean(),
       Enquiry.find({}).select("status").lean(),
-      Member.countDocuments(),
     ]);
     res.json({
       images,
@@ -481,7 +434,6 @@ app.get(
       pendingReviews: reviews.filter((r) => r.status === "pending").length,
       approvedReviews: reviews.filter((r) => r.status === "approved").length,
       newEnquiries: enquiries.filter((e) => e.status === "new").length,
-      members,
     });
   }),
 );
@@ -671,15 +623,6 @@ app.delete(
     const enquiry = await Enquiry.findByIdAndDelete(id);
     if (!enquiry) throw new HttpError(404, "Not found");
     res.json({ ok: true });
-  }),
-);
-
-app.get(
-  "/api/admin/members",
-  wrap(async (req, res) => {
-    await requireAdmin(req);
-    const members = await Member.find({}).sort({ createdAt: -1 }).lean();
-    res.json(members);
   }),
 );
 

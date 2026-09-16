@@ -210,19 +210,10 @@ export interface Enquiry {
   createdAt: number;
 }
 
-export interface Member {
-  _id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  createdAt: number;
-}
-
 export interface AdminStats {
   images: number;
   products: number;
   pendingReviews: number;
   approvedReviews: number;
   newEnquiries: number;
-  members: number;
 }
