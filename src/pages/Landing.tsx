@@ -35,7 +35,8 @@ import {
 import { Link } from "react-router";
 
 const INSTAGRAM_URL = "https://instagram.com/s_kitchen_point_bilimora";
-const WHATSAPP_URL = "https://wa.me/85111763736";
+// wa.me needs the full international format — 91 (India) + 10-digit mobile.
+const WHATSAPP_URL = "https://wa.me/918511763736";
 const ADDRESS =
   "Shop No. 15, Ground Floor, Shree Vinayak Homes, Opp. ITI, Atalia, Bilimora 396321";
 const MAP_SRC =

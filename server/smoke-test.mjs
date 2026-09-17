@@ -65,14 +65,16 @@ let products;
   console.log("✓ products seeded (4 services)");
 }
 
-// 3. Public gallery empty, admin auth required
+// 3. Public gallery seeded with default photos, admin auth required
 {
   const res = await fetch(`${base}/api/gallery`);
   assert.equal(res.status, 200);
-  assert.deepEqual(await json(res), []);
+  const gallery = await json(res);
+  assert.equal(gallery.length, 5);
+  assert.ok(gallery[0].url.endsWith(".jpg"));
   const statsRes = await fetch(`${base}/api/admin/stats`);
   assert.equal(statsRes.status, 401);
-  console.log("✓ gallery empty; admin endpoints reject anonymous access");
+  console.log("✓ gallery seeded with default photos; admin endpoints reject anonymous access");
 }
 
 // 4. Admin login (bad + good)
@@ -103,7 +105,7 @@ const auth = { Authorization: `Bearer ${token}` };
   const res = await fetch(`${base}/api/admin/stats`, { headers: auth });
   const stats = await json(res);
   assert.equal(stats.products, 4);
-  assert.equal(stats.images, 0);
+  assert.equal(stats.images, 5); // default gallery photos are seeded
   console.log("✓ admin stats");
 }
 
@@ -158,14 +160,29 @@ let reviewId;
   console.log("✓ review submit → moderation → public visibility");
 }
 
-// 8. Enquiry flow: submit → list → handle → delete
+// 8. Enquiry flow: validation → submit → list → handle → delete
 {
+  // Phone validation: only a 10-digit number is accepted.
+  const badPhone = await fetch(`${base}/api/enquiries`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: "Priya",
+      phone: "98765",
+      message: "Need an L-shaped kitchen quote",
+    }),
+  });
+  assert.equal(badPhone.status, 400);
+  assert.match((await json(badPhone)).error, /10-digit/);
+
   const submit = await fetch(`${base}/api/enquiries`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       name: "Priya",
       phone: "9876543210",
+      location: "Bilimora",
+      requirement: "Temple / mandir",
       message: "Need an L-shaped kitchen quote",
     }),
   });
@@ -176,6 +193,8 @@ let reviewId;
   ).json();
   assert.equal(enquiries.length, 1);
   assert.equal(enquiries[0].status, "new");
+  assert.equal(enquiries[0].location, "Bilimora");
+  assert.equal(enquiries[0].requirement, "Temple / mandir");
 
   const handled = await fetch(`${base}/api/admin/enquiries/${enquiries[0]._id}`, {
     method: "PATCH",
@@ -224,7 +243,8 @@ let reviewId;
   assert.equal(served.headers.get("content-type"), "image/png");
 
   const gallery = await (await fetch(`${base}/api/gallery`)).json();
-  assert.equal(gallery.length, 1);
+  assert.equal(gallery.length, 6); // 5 seeded + 1 uploaded
+  assert.equal(gallery[0].url, image.url); // newest first
 
   const del = await fetch(`${base}/api/admin/images/${image._id}`, {
     method: "DELETE",

@@ -18,15 +18,22 @@ const REQUIREMENTS = [
   "PVC furniture",
   "Wardrobe / storage",
   "TV unit / home decor",
+  "Temple / mandir",
   "Full home interiors",
   "Something else",
 ];
+
+/** Exactly 10 digits — ignores spaces, dashes and a +91/0 prefix. */
+function isValidPhone(value: string) {
+  return /^\d{10}$/.test(value.replace(/\D/g, ""));
+}
 
 export function EnquiryForm() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [requirement, setRequirement] = useState<string>("");
+  const [location, setLocation] = useState("");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success">(
     "idle",
@@ -38,6 +45,7 @@ export function EnquiryForm() {
     setPhone("");
     setEmail("");
     setRequirement("");
+    setLocation("");
     setMessage("");
   };
 
@@ -45,6 +53,12 @@ export function EnquiryForm() {
     event.preventDefault();
     if (status === "submitting") return;
     setError(null);
+
+    if (!isValidPhone(phone)) {
+      setError("Please enter a 10-digit mobile number.");
+      return;
+    }
+
     setStatus("submitting");
 
     try {
@@ -54,6 +68,7 @@ export function EnquiryForm() {
           phone,
           email: email.trim() || undefined,
           requirement: requirement || undefined,
+          location: location.trim() || undefined,
           message,
         },
       });
@@ -116,9 +131,14 @@ export function EnquiryForm() {
           <Input
             id="phone"
             type="tel"
+            inputMode="numeric"
+            maxLength={10}
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+91 ..."
+            onChange={(e) => {
+              // Only digits, capped at 10.
+              setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+            }}
+            placeholder="10-digit mobile number"
             required
             disabled={status === "submitting"}
           />
@@ -156,6 +176,17 @@ export function EnquiryForm() {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="location">Location</Label>
+        <Input
+          id="location"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="Town / area — e.g. Bilimora, Navsari"
+          disabled={status === "submitting"}
+        />
       </div>
 
       <div className="space-y-2">

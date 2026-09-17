@@ -1,7 +1,16 @@
 import { BrandLogo } from "@/components/BrandLogo";
+import { WhatsAppIcon } from "@/components/BrandIcons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +29,7 @@ import type {
 } from "@/lib/api";
 import {
   Check,
+  Eye,
   ImagePlus,
   Inbox,
   IndianRupee,
@@ -27,7 +37,9 @@ import {
   Loader2,
   Lock,
   LogOut,
+  MapPin,
   MessageSquare,
+  Phone,
   RotateCcw,
   Star,
   Trash2,
@@ -484,8 +496,8 @@ function ImagesTab({
             Add an image
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Paste an image link (like Talk N Tea) or upload a file — images
-            appear in the homepage hero and gallery straight away.
+            Paste an image link or upload a file — images appear in the
+            homepage hero and gallery straight away.
           </p>
           <form onSubmit={handleAddLink} className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <Input
@@ -815,6 +827,8 @@ function EnquiriesTab({
   onStatus: (id: string, status: "new" | "handled") => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
+  const [selected, setSelected] = useState<Enquiry | null>(null);
+
   if (enquiries === undefined) {
     return <Skeleton className="h-32 w-full rounded-xl" />;
   }
@@ -826,16 +840,115 @@ function EnquiriesTab({
     );
   }
 
+  // Keep the dialog showing the freshest data after status toggles.
+  const openEnquiry = selected
+    ? (enquiries.find((e) => e._id === selected._id) ?? null)
+    : null;
+
   return (
-    <div className="space-y-3">
-      {enquiries.map((enq) => (
-        <Card key={enq._id} className="border-border/70 shadow-none">
-          <CardContent className="p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-base font-semibold">{enq.name}</p>
+    <>
+      <div className="space-y-3">
+        {enquiries.map((enq) => (
+          <Card key={enq._id} className="border-border/70 shadow-none">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-base font-semibold">{enq.name}</p>
+                    {enq.status === "new" ? (
+                      <Badge className="border-transparent bg-primary/10 text-primary">
+                        New
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Handled
+                      </Badge>
+                    )}
+                    {enq.requirement && (
+                      <Badge variant="outline" className="border-border/70">
+                        {enq.requirement}
+                      </Badge>
+                    )}
+                    {enq.location && (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-border/70 text-muted-foreground"
+                      >
+                        <MapPin className="size-3" />
+                        {enq.location}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {enq.phone}
+                    {enq.email ? ` · ${enq.email}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setSelected(enq)}
+                  >
+                    <Eye className="size-4" />
+                    View
+                  </Button>
                   {enq.status === "new" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => onStatus(enq._id, "handled")}
+                    >
+                      <Check className="size-4" />
+                      Mark handled
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => onStatus(enq._id, "new")}
+                    >
+                      <RotateCcw className="size-4" />
+                      Reopen
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label="Delete enquiry"
+                    onClick={() => onDelete(enq._id)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Detail dialog — the full enquiry with quick contact actions. */}
+      <Dialog
+        open={!!openEnquiry}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          {openEnquiry && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex flex-wrap items-center gap-2 pr-6">
+                  {openEnquiry.name}
+                  {openEnquiry.status === "new" ? (
                     <Badge className="border-transparent bg-primary/10 text-primary">
                       New
                     </Badge>
@@ -844,59 +957,106 @@ function EnquiriesTab({
                       Handled
                     </Badge>
                   )}
-                  {enq.requirement && (
-                    <Badge variant="outline" className="border-border/70">
-                      {enq.requirement}
-                    </Badge>
+                </DialogTitle>
+                <DialogDescription>
+                  {openEnquiry.requirement || "General enquiry"}
+                  {openEnquiry.location ? ` · ${openEnquiry.location}` : ""}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Phone className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="font-medium">{openEnquiry.phone}</span>
+                  </div>
+                  {openEnquiry.email && (
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{openEnquiry.email}</span>
+                    </div>
+                  )}
+                  {openEnquiry.location && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="size-4 shrink-0 text-muted-foreground" />
+                      <span>{openEnquiry.location}</span>
+                    </div>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {enq.phone}
-                  {enq.email ? ` · ${enq.email}` : ""}
-                </p>
+
+                <div className="rounded-xl border border-border/70 bg-muted/40 p-4">
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Message
+                  </p>
+                  <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-foreground/90">
+                    {openEnquiry.message}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                {enq.status === "new" ? (
+
+              <DialogFooter className="gap-2 sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm" className="gap-1.5">
+                    <a href={`tel:+91${openEnquiry.phone}`}>
+                      <Phone className="size-4" />
+                      Call
+                    </a>
+                  </Button>
+                  <Button asChild size="sm" className="gap-1.5 bg-[#25D366] text-white hover:bg-[#1eb857]">
+                    <a
+                      href={`https://wa.me/91${openEnquiry.phone}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <WhatsAppIcon className="size-4" />
+                      WhatsApp
+                    </a>
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="gap-1.5"
-                    onClick={() => onStatus(enq._id, "handled")}
+                    onClick={() =>
+                      onStatus(
+                        openEnquiry._id,
+                        openEnquiry.status === "new" ? "handled" : "new",
+                      )
+                    }
                   >
-                    <Check className="size-4" />
-                    Mark handled
+                    {openEnquiry.status === "new" ? (
+                      <>
+                        <Check className="size-4" />
+                        Mark handled
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="size-4" />
+                        Reopen
+                      </>
+                    )}
                   </Button>
-                ) : (
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="gap-1.5"
-                    onClick={() => onStatus(enq._id, "new")}
+                    className="gap-1.5 text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      onDelete(openEnquiry._id);
+                      setSelected(null);
+                    }}
                   >
-                    <RotateCcw className="size-4" />
-                    Reopen
+                    <Trash2 className="size-4" />
+                    Delete
                   </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive"
-                  aria-label="Delete enquiry"
-                  onClick={() => onDelete(enq._id)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-            </div>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground/80">
-              {enq.message}
-            </p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+                </div>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

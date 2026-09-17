@@ -180,11 +180,15 @@ async function createSchema() {
       phone       TEXT NOT NULL,
       email       TEXT,
       requirement TEXT,
+      location    TEXT,
       message     TEXT NOT NULL,
       status      TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','handled')),
       created_at  BIGINT NOT NULL
     )
   `);
+  // Pre-existing databases (deployed before the location field): add the
+  // column without touching existing rows.
+  await q(`ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS location TEXT`);
   await q(`
     CREATE TABLE IF NOT EXISTS admin_sessions (
       token      TEXT PRIMARY KEY,
@@ -268,6 +272,15 @@ function loginRateLimit(req, res, next) {
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Gallery tiles shown on the public site (served from /public). */
+const DEFAULT_GALLERY = [
+  { title: "L-shaped modular kitchen", img: "/gallery-kitchen-1.jpg" },
+  { title: "Sliding-door wardrobe", img: "/gallery-wardrobe.jpg" },
+  { title: "PVC TV unit", img: "/gallery-tv-unit.jpg" },
+  { title: "Under-stair storage", img: "/gallery-storage-1.jpg" },
+  { title: "Decorative door & wall panelling", img: "/gallery-door-1.jpg" },
+];
+
 /** Products — seeded with the default services on first run. */
 const DEFAULT_PRODUCTS = [
   {
@@ -315,6 +328,26 @@ async function ensureSeeded() {
       );
     }
     console.log("[seed] Inserted default services/rates");
+  }
+
+  // Seed the gallery with the site's default photos the first time the
+  // database is empty — otherwise the admin panel shows no images even
+  // though the public site displays its built-in photos.
+  const [{ count: imageCount }] = await q(
+    `SELECT count(*)::int AS count FROM gallery_images`,
+  );
+  if (Number(imageCount) === 0) {
+    const now = Date.now();
+    let order = now;
+    for (const tile of DEFAULT_GALLERY) {
+      await q(
+        `INSERT INTO gallery_images (title, url, "order", created_at)
+         VALUES ($1, $2, $3, $4)`,
+        [tile.title, tile.img, order, now],
+      );
+      order -= 1;
+    }
+    console.log("[seed] Inserted default gallery images");
   }
 }
 
@@ -395,27 +428,31 @@ app.post(
     const phone = String(req.body?.phone ?? "").trim();
     const email = String(req.body?.email ?? "").trim();
     const requirement = String(req.body?.requirement ?? "").trim();
+    const location = String(req.body?.location ?? "").trim();
     const message = String(req.body?.message ?? "").trim();
 
     if (name.length < 2) {
       throw new HttpError(400, "Please enter your name.");
     }
-    if (phone.replace(/\D/g, "").length < 7) {
-      throw new HttpError(400, "Please enter a valid phone number.");
+    // Exactly 10 digits — with or without spaces/+91 prefix.
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length !== 10) {
+      throw new HttpError(400, "Please enter a 10-digit mobile number.");
     }
     if (message.length < 5) {
       throw new HttpError(400, "Please tell us a little about what you need.");
     }
 
     const rows = await q(
-      `INSERT INTO enquiries (name, phone, email, requirement, message, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'new', $6)
+      `INSERT INTO enquiries (name, phone, email, requirement, location, message, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7)
        RETURNING id`,
       [
         name.slice(0, 120),
-        phone.slice(0, 40),
+        phoneDigits,
         email ? email.slice(0, 160) : null,
         requirement ? requirement.slice(0, 80) : null,
+        location ? location.slice(0, 160) : null,
         message.slice(0, 2000),
         Date.now(),
       ],
@@ -653,7 +690,7 @@ app.get(
   wrap(async (req, res) => {
     await requireAdmin(req);
     const enquiries = await q(
-      `SELECT id AS "_id", name, phone, email, requirement, message, status,
+      `SELECT id AS "_id", name, phone, email, requirement, location, message, status,
               created_at AS "createdAt"
        FROM enquiries ORDER BY created_at DESC`,
     );
@@ -672,7 +709,7 @@ app.patch(
     }
     const rows = await q(
       `UPDATE enquiries SET status = $2 WHERE id = $1
-       RETURNING id AS "_id", name, phone, email, requirement, message, status,
+       RETURNING id AS "_id", name, phone, email, requirement, location, message, status,
                  created_at AS "createdAt"`,
       [id, status],
     );

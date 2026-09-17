@@ -205,6 +205,7 @@ export interface Enquiry {
   phone: string;
   email?: string;
   requirement?: string;
+  location?: string;
   message: string;
   status: "new" | "handled";
   createdAt: number;
