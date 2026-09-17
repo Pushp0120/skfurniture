@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiSend } from "@/lib/api";
-import { CheckCircle2, Loader2, Send } from "lucide-react";
+import { CheckCircle2, Loader2, LocateFixed, Send } from "lucide-react";
 import { useState } from "react";
 
 const REQUIREMENTS = [
@@ -35,6 +35,8 @@ export function EnquiryForm() {
   const [requirement, setRequirement] = useState<string>("");
   const [location, setLocation] = useState("");
   const [message, setMessage] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "submitting" | "success">(
     "idle",
   );
@@ -47,6 +49,62 @@ export function EnquiryForm() {
     setRequirement("");
     setLocation("");
     setMessage("");
+    setLocError(null);
+  };
+
+  /** Detect the visitor's location via GPS and fill the field with a
+   *  readable area name (reverse-geocoded through OpenStreetMap). */
+  const handleUseGps = () => {
+    setLocError(null);
+    if (!("geolocation" in navigator)) {
+      setLocError("Your browser doesn't support location detection.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const coords = `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+          );
+          if (!res.ok) throw new Error("geocode failed");
+          const data = await res.json();
+          const a = data?.address ?? {};
+          const area =
+            a.neighbourhood || a.suburb || a.village || a.hamlet || a.road || "";
+          const city = a.town || a.city || a.city_district || a.county || "";
+          const state = a.state || "";
+          const place = [area, city, state].filter(Boolean).join(", ");
+          setLocation(
+            place ||
+              String(data.display_name ?? "")
+                .split(",")
+                .slice(0, 3)
+                .join(",")
+                .trim() ||
+              coords,
+          );
+        } catch {
+          // Reverse geocoding failed — still capture the coordinates.
+          setLocation(coords);
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocError("Location permission denied — type your area instead.");
+        } else if (err.code === err.TIMEOUT) {
+          setLocError("Couldn't detect your location in time — type it instead.");
+        } else {
+          setLocError("Couldn't detect your location — type your area instead.");
+        }
+      },
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 },
+    );
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -179,7 +237,22 @@ export function EnquiryForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="location">Location</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="location">Location</Label>
+          <button
+            type="button"
+            onClick={handleUseGps}
+            disabled={locating || status === "submitting"}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {locating ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <LocateFixed className="size-3.5" />
+            )}
+            {locating ? "Detecting…" : "Use my current location"}
+          </button>
+        </div>
         <Input
           id="location"
           value={location}
@@ -187,6 +260,7 @@ export function EnquiryForm() {
           placeholder="Town / area — e.g. Bilimora, Navsari"
           disabled={status === "submitting"}
         />
+        {locError && <p className="text-xs text-destructive">{locError}</p>}
       </div>
 
       <div className="space-y-2">
