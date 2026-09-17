@@ -138,7 +138,7 @@ export default function Landing() {
 
   const heroImages = (gallery ?? [])
     .filter((image) => image.url)
-    .slice(0, 3);
+    .slice(0, 1);
 
   const avgRating =
     reviews && reviews.length > 0
@@ -283,36 +283,15 @@ export default function Landing() {
             <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-[radial-gradient(60%_60%_at_70%_20%,rgba(199,154,107,0.35),transparent)] blur-2xl" />
             <Card className="overflow-hidden border-border/70 shadow-xl shadow-black/5">
               <CardContent className="p-3">
-                {heroImages.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    {heroImages[0].url && (
-                      <img
-                        src={heroImages[0].url}
-                        alt={heroImages[0].title}
-                        className="col-span-2 h-48 w-full rounded-xl object-cover sm:h-56"
-                        loading="eager"
-                      />
-                    )}
-                    {heroImages.slice(1, 3).map((image) =>
-                      image.url ? (
-                        <img
-                          key={image._id}
-                          src={image.url}
-                          alt={image.title}
-                          className="h-28 w-full rounded-xl object-cover sm:h-32"
-                          loading="lazy"
-                        />
-                      ) : null,
-                    )}
-                  </div>
-                ) : (
-                  <img
-                    src="/hero-kitchen.jpg"
-                    alt="Sage-green modular kitchen with wooden shelves built by S KITCHEN POINT"
-                    className="aspect-[4/3] w-full rounded-xl object-cover"
-                    loading="eager"
-                  />
-                )}
+                <img
+                  src={heroImages[0]?.url ?? "/hero-kitchen.jpg"}
+                  alt={
+                    heroImages[0]?.title ??
+                    "Sage-green modular kitchen with wooden shelves built by S KITCHEN POINT"
+                  }
+                  className="aspect-[4/3] w-full rounded-xl object-cover"
+                  loading="eager"
+                />
               </CardContent>
             </Card>
             <div className="absolute -bottom-4 -left-3 rounded-xl border border-border/70 bg-card px-4 py-3 shadow-lg sm:-left-6">
