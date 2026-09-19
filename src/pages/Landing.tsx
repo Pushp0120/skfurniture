@@ -136,10 +136,6 @@ export default function Landing() {
   const products = useApi<Product[]>("/api/products");
   const reviews = useApi<Review[]>("/api/reviews", { pollMs: 30000 });
 
-  const heroImages = (gallery ?? [])
-    .filter((image) => image.url)
-    .slice(0, 1);
-
   const avgRating =
     reviews && reviews.length > 0
       ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
@@ -284,11 +280,8 @@ export default function Landing() {
             <Card className="overflow-hidden border-border/70 shadow-xl shadow-black/5">
               <CardContent className="p-3">
                 <img
-                  src={heroImages[0]?.url ?? "/hero-kitchen.jpg"}
-                  alt={
-                    heroImages[0]?.title ??
-                    "Sage-green modular kitchen with wooden shelves built by S KITCHEN POINT"
-                  }
+                  src="/hero-kitchen.jpg"
+                  alt="Sage-green modular kitchen with wooden shelves built by S KITCHEN POINT"
                   className="aspect-[4/3] w-full rounded-xl object-cover"
                   loading="eager"
                 />
