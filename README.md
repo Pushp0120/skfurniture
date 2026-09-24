@@ -145,9 +145,7 @@ node server/smoke-test.mjs
 There is exactly **one** admin account. It is configured with environment
 variables (see `.env.example`):
 
-```bash
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=Admin@123   # CHANGE THIS before going live
+
 ```
 
 Admin sessions are stored in the database and expire after 12 hours.
